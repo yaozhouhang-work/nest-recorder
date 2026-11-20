@@ -1,0 +1,4 @@
+# 巢位数据不进仓库
+*.csv
+*.geojson
+data/
