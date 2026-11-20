@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.4</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.4.1</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -131,7 +131,8 @@
     </div>
   </div>
 
-  <input type="file" id="file-import" accept=".zip,application/zip,.csv,text/csv,.kmz,.kml,application/vnd.google-earth.kmz,application/vnd.google-earth.kml+xml" multiple hidden>
+  <!-- accept は付けない：スマホでは KMZ の種類が判別されず選べなくなるため。種類は読み込み時に判定 -->
+  <input type="file" id="file-import" multiple hidden>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
