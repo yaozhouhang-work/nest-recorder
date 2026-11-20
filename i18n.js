@@ -217,3 +217,32 @@ Object.assign(I18N.en, {
   welcome_body: 'If you have earlier records (a ZIP from this tool or a My Maps KMZ), import them first, then start recording.',
   welcome_import: 'Import earlier data',
 });
+
+/* v0.5：My Maps 連携（任意） */
+Object.assign(I18N.ja, {
+  mm_option: 'My Maps 連携を使う', mm_option_hint: 'オンにすると「データ」画面に、My Maps へ追加するための書き出しが表示されます。',
+  mm_title: 'My Maps 連携', mm_export: '⇩ My Maps 用 KMZ（前回以降の追加・修正分）',
+  mm_pending: '対象 {n} 件', mm_none: '前回以降の追加・修正はありません', mm_last: '前回：{t}', mm_layer: '巣記録 追加分',
+  mm_step1: '上のボタンで KMZ を作り、共有メニューから Google ドライブに保存',
+  mm_step2: 'My Maps で地図を開き「レイヤを追加」→「インポート」→ ドライブの KMZ を選択',
+  mm_step3: '新しいレイヤとして追加されます',
+  mm_note: '注意：My Maps は既存の地点を更新できません。前に送った巣を修正した場合、新しいレイヤにも同じ巣が入るので、古い方は My Maps 上で手動で削除してください。',
+});
+Object.assign(I18N.zh, {
+  mm_option: '使用 My Maps 联动', mm_option_hint: '打开后，“数据”页面会出现给 My Maps 追加数据用的导出按钮。',
+  mm_title: 'My Maps 联动', mm_export: '⇩ My Maps 用 KMZ（上次之后新增·修改的部分）',
+  mm_pending: '共 {n} 个', mm_none: '上次之后没有新增或修改', mm_last: '上次：{t}', mm_layer: '巢记录 新增部分',
+  mm_step1: '用上面的按钮生成 KMZ，在分享菜单里存到 Google Drive',
+  mm_step2: '在 My Maps 打开地图，“添加图层”→“导入”→ 选 Drive 里的 KMZ',
+  mm_step3: '会作为一个新图层加进去',
+  mm_note: '注意：My Maps 无法更新已有的点。之前送过的巢如果改过，新图层里也会有它，旧的请在 My Maps 上手动删除。',
+});
+Object.assign(I18N.en, {
+  mm_option: 'Use My Maps sync', mm_option_hint: 'When on, the Data screen shows an export for adding data to My Maps.',
+  mm_title: 'My Maps sync', mm_export: '⇩ KMZ for My Maps (new / changed since last time)',
+  mm_pending: '{n} items', mm_none: 'Nothing new or changed since last time', mm_last: 'Last: {t}', mm_layer: 'Nest Recorder update',
+  mm_step1: 'Create the KMZ with the button above and save it to Google Drive from the share menu',
+  mm_step2: 'Open the map in My Maps → "Add layer" → "Import" → choose the KMZ from Drive',
+  mm_step3: 'It is added as a new layer',
+  mm_note: 'Note: My Maps cannot update existing points. If you changed a nest that was sent before, it appears again in the new layer; delete the old one in My Maps by hand.',
+});

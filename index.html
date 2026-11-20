@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.4.1</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.5</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -103,6 +103,18 @@
       <button id="exp-all" class="primary" data-i18n="export_all"></button>
     </div>
     <p class="hint" id="exp-last"></p>
+    <div id="mm-section" hidden>
+      <hr>
+      <h3 class="sub" data-i18n="mm_title"></h3>
+      <button id="exp-mm" class="wide" data-i18n="mm_export"></button>
+      <p class="hint" id="mm-info"></p>
+      <ol class="hint steps">
+        <li data-i18n="mm_step1"></li>
+        <li><span data-i18n="mm_step2"></span> <a href="https://www.google.com/maps/d/" target="_blank" rel="noopener">My Maps ↗</a></li>
+        <li data-i18n="mm_step3"></li>
+      </ol>
+      <p class="hint" data-i18n="mm_note"></p>
+    </div>
     <hr>
     <button id="btn-import" class="wide" data-i18n="import"></button>
     <p class="hint" data-i18n="import_hint"></p>
@@ -119,6 +131,8 @@
     <label class="row"><span data-i18n="recorder_code"></span>
       <input id="s-recorder" maxlength="4" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></label>
     <p class="hint" data-i18n="recorder_hint"></p>
+    <label class="row check"><input type="checkbox" id="s-mymaps"><span data-i18n="mm_option"></span></label>
+    <p class="hint" data-i18n="mm_option_hint"></p>
     <div class="actions"><span></span><button id="s-save" class="primary" data-i18n="save"></button></div>
   </section>
 

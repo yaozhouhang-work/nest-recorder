@@ -11,7 +11,7 @@ const DEFAULT_VIEW = { lat: 43.07, lon: 141.34, zoom: 12 };
 
 const NEST_COLS = ['nest_id', 'name', 'category', 'layer', 'created_at', 'updated_at', 'recorder', 'lat', 'lon', 'loc_source',
   'gps_lat', 'gps_lon', 'gps_accuracy_m', 'species', 'season_result', 'nest_type', 'height_m', 'site', 'material', 'note',
-  'mm_icon', 'mm_description', 'photo_urls'];
+  'mm_icon', 'mm_description', 'photo_urls', 'mm_synced_at'];
 const VISIT_COLS = ['visit_id', 'nest_id', 'visit_no', 'datetime', 'recorder', 'status', 'eggs', 'chicks',
   'adult', 'photo_ids', 'note', 'created_at', 'updated_at'];
 const EDIT_COLS = ['edited_at', 'recorder', 'table', 'record_id', 'field', 'old_value', 'new_value'];
@@ -515,7 +515,8 @@ async function importFiles(files) {
         const now = nowIso();
         for (const n of res.nests) {
           if (findNest(n.nest_id)) { skipped++; continue; }          // 既存の巣は上書きしない（端末での編集を守る）
-          db.nests.push({ ...n, created_at: now, updated_at: now, recorder: '' });
+          // My Maps から来た点は既に My Maps にあるので、同期済みとして記録する
+          db.nests.push({ ...n, created_at: now, updated_at: now, recorder: '', mm_synced_at: now });
           added++;
         }
         db.edits.push({ edited_at: now, recorder: rec(), table: 'import', record_id: f.name, field: '(kmz)',
@@ -559,7 +560,36 @@ async function showDataInfo() {
   let persisted = false;
   try { persisted = await navigator.storage?.persisted?.(); } catch (e) { /* ignore */ }
   $('#storage-status').textContent = persisted ? t('storage_persist_ok') : t('storage_persist_no');
+  $('#mm-section').hidden = !db.settings.mymaps;
+  if (db.settings.mymaps) {
+    const n = mmPending().length;
+    $('#mm-info').textContent = (n ? t('mm_pending', { n }) : t('mm_none')) +
+      (db.mmLastExport ? ' / ' + t('mm_last', { t: fmtTime(db.mmLastExport) }) : '');
+  }
 }
+
+// ================= My Maps 連携（任意） =================
+// My Maps には外部から書き込む手段がないため、前回以降に追加・修正した点だけを KMZ にし、
+// ユーザーが My Maps の「インポート」で新しいレイヤーとして読み込む。
+const mmAfter = (a, b) => !b || Date.parse(a) > Date.parse(b);
+function mmPending() {
+  return db.nests.filter((n) => mmAfter(n.updated_at, n.mm_synced_at) ||
+    db.visits.some((v) => v.nest_id === n.nest_id && mmAfter(v.updated_at, n.mm_synced_at)));
+}
+$('#exp-mm').onclick = async () => {
+  const items = mmPending();
+  if (!items.length) { alert(t('mm_none')); return; }
+  const stamp = nowIso();
+  const blob = await buildKmz({ nests: items, visitsOf, optLabel,
+    layerNames: { nest: optLabel('category', 'nest'), supplement: optLabel('category', 'supplement') },
+    docName: `${t('mm_layer')} ${fmtTime(stamp)}` });
+  const ok = await shareOrDownload([new File([blob], `mymaps-update_${rec() || 'XX'}_${compact().slice(0, 12)}.kmz`,
+    { type: 'application/vnd.google-earth.kmz' })]);
+  if (!ok) return;
+  items.forEach((n) => { n.mm_synced_at = stamp; });   // updated_at は変えない（内容の変更ではないため）
+  db.mmLastExport = stamp;
+  save(); showDataInfo();
+};
 function updateBadge() {
   const b = $('#unexported');
   b.hidden = !db.unexported;
@@ -595,6 +625,7 @@ function openSettings() {
   closeSheets();
   $('#s-lang').value = db.settings.lang;
   $('#s-recorder').value = db.settings.recorder;
+  $('#s-mymaps').checked = !!db.settings.mymaps;
   $('#sheet-settings').hidden = false;
 }
 $('#btn-settings').onclick = openSettings;
@@ -603,6 +634,7 @@ $('#s-save').onclick = () => {
   const code = $('#s-recorder').value.trim().toUpperCase().replace(/[^A-Z]/g, '');
   if (code.length < 2) { alert(t('recorder_hint')); return; }
   db.settings.recorder = code; db.settings.lang = $('#s-lang').value;
+  db.settings.mymaps = $('#s-mymaps').checked;
   save(); applyI18n(); closeSheets();
 };
 

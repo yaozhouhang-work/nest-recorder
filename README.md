@@ -1,4 +1,4 @@
-# 巣記録 Nest Recorder（試作版 v0.4）
+# 巣記録 Nest Recorder（試作版 v0.5）
 
 スマホのブラウザで使う野外の巣記録ツール。iPhone / Android どちらでも動きます。
 
@@ -12,6 +12,7 @@
 - すべての修正を履歴に残す
 - 書き出しは ZIP 1 つ（CSV 3 件 + My Maps 用 KMZ）。読み込みは ZIP / CSV / KMZ（複数人の記録の統合にも使用）
 - Google My Maps の KMZ 読み込み・書き出し（巣データ / 補足データ を区別）
+- 任意：My Maps 連携（前回以降の追加・修正分だけを KMZ にして My Maps に取り込む）
 - 日本語 / 中文 / English
 
 ## データについて
