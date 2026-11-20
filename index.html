@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.3</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.4</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -101,8 +101,6 @@
     <p class="warn" data-i18n="data_warn"></p>
     <div class="actions col">
       <button id="exp-all" class="primary" data-i18n="export_all"></button>
-      <button id="exp-kmz" data-i18n="export_kmz"></button>
-      <button id="exp-geojson" data-i18n="export_geojson"></button>
     </div>
     <p class="hint" id="exp-last"></p>
     <hr>
@@ -133,7 +131,7 @@
     </div>
   </div>
 
-  <input type="file" id="file-import" accept=".csv,text/csv,.kmz,.kml,application/vnd.google-earth.kmz,application/vnd.google-earth.kml+xml" multiple hidden>
+  <input type="file" id="file-import" accept=".zip,application/zip,.csv,text/csv,.kmz,.kml,application/vnd.google-earth.kmz,application/vnd.google-earth.kml+xml" multiple hidden>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>

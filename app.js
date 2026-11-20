@@ -432,35 +432,23 @@ async function shareOrDownload(files) {
   }
   return true;
 }
+/* 書き出しは 1 つの ZIP にまとめる：CSV 3 件（完全なバックアップ）+ KMZ（My Maps 用） */
 async function exportAll() {
   const tag = `${rec() || 'XX'}_${compact().slice(0, 12)}`;
-  const csv = (name, text) => new File([text], `${name}_${tag}.csv`, { type: 'text/csv' });
-  const ok = await shareOrDownload([
-    csv('nests', toCsv(db.nests, NEST_COLS)),
-    csv('visits', toCsv(visitsForExport(), VISIT_COLS)),
-    csv('edits', toCsv(db.edits, EDIT_COLS)),
-  ]);
+  const kmz = await buildKmz({ nests: db.nests, visitsOf, optLabel,
+    layerNames: { nest: optLabel('category', 'nest'), supplement: optLabel('category', 'supplement') },
+    docName: db.settings.kmzName || 'Nest Recorder' });
+  const zip = new JSZip();
+  zip.file(`nests_${tag}.csv`, toCsv(db.nests, NEST_COLS));
+  zip.file(`visits_${tag}.csv`, toCsv(visitsForExport(), VISIT_COLS));
+  zip.file(`edits_${tag}.csv`, toCsv(db.edits, EDIT_COLS));
+  zip.file(`mymaps_${tag}.kmz`, kmz);
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip', compression: 'DEFLATE' });
+  const ok = await shareOrDownload([new File([blob], `nest-records_${tag}.zip`, { type: 'application/zip' })]);
   if (ok) { db.lastExport = nowIso(); db.unexported = 0; save(); updateBadge(); showDataInfo(); }
   return ok;
 }
 $('#exp-all').onclick = exportAll;
-$('#exp-kmz').onclick = async () => {
-  const blob = await buildKmz({ nests: db.nests, visitsOf, optLabel,
-    layerNames: { nest: optLabel('category', 'nest'), supplement: optLabel('category', 'supplement') },
-    docName: db.settings.kmzName || 'Nest Recorder' });
-  shareOrDownload([new File([blob], `nests_${rec() || 'XX'}_${compact().slice(0, 12)}.kmz`,
-    { type: 'application/vnd.google-earth.kmz' })]);
-};
-$('#exp-geojson').onclick = () => {
-  const gj = { type: 'FeatureCollection', features: db.nests.map((n) => {
-    const lv = lastVisit(n.nest_id);
-    return { type: 'Feature', geometry: { type: 'Point', coordinates: [n.lon, n.lat] },
-      properties: { ...Object.fromEntries(NEST_COLS.map((c) => [c, n[c]])),
-        visit_count: visitsOf(n.nest_id).length, last_status: lv?.status ?? null, last_visit: lv?.datetime ?? null } };
-  }) };
-  shareOrDownload([new File([JSON.stringify(gj, null, 2)], `nests_${rec() || 'XX'}_${compact().slice(0, 12)}.geojson`,
-    { type: 'application/geo+json' })]);
-};
 
 // ================= 読み込み =================
 function parseCsv(text) {
@@ -500,8 +488,25 @@ function mergeInto(list, key, items) {
   }
   return { added, updated };
 }
+/* このツールの ZIP を展開。CSV があれば CSV だけを使う（KMZ は同じ内容で、確認記録が文字になっているため） */
+async function expandZips(files, bad) {
+  const out = [];
+  for (const f of files) {
+    if (!/\.zip$/i.test(f.name)) { out.push(f); continue; }
+    try {
+      const zip = await JSZip.loadAsync(f);
+      const entries = Object.values(zip.files).filter((e) => !e.dir && !/(^|\/)(__MACOSX|\.)/.test(e.name));
+      const csvs = entries.filter((e) => /\.csv$/i.test(e.name));
+      const use = csvs.length ? csvs : entries.filter((e) => /\.(kmz|kml)$/i.test(e.name));
+      if (!use.length) { bad.push(f.name); continue; }
+      for (const e of use) out.push(new File([await e.async('blob')], e.name.split('/').pop()));
+    } catch (e) { console.warn(e); bad.push(f.name); }
+  }
+  return out;
+}
 async function importFiles(files) {
   const bad = []; const r = { n: 0, u: 0, v: 0, w: 0, k: [] };
+  files = await expandZips(files, bad);
   for (const f of files) {
     if (/\.(kmz|kml)$/i.test(f.name)) {
       try {

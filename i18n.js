@@ -194,3 +194,26 @@ OPTIONS.season_result = [
   ['failed', { ja: '繁殖失敗', zh: '繁殖失败', en: 'Failed' }],
   ['unused', { ja: '今年は未使用', zh: '今年未使用', en: 'Not used this year' }],
 ];
+
+/* v0.4：書き出しを ZIP 1 つに */
+Object.assign(I18N.ja, {
+  export_all: '⇩ すべて書き出す（ZIP：CSV + KMZ）',
+  import: '⇧ 読み込む（ZIP / CSV / KMZ）',
+  import_hint: 'このツールで書き出した ZIP、他の人の ZIP・CSV、または My Maps の KMZ を選択（複数可）。同じ ID は新しい方を残し、KMZ は既にある地点を上書きしません。',
+  welcome_body: 'これまでの記録（このツールの ZIP や My Maps の KMZ）があれば、先に読み込んでから記録を始めてください。',
+  welcome_import: '以前のデータを読み込む',
+});
+Object.assign(I18N.zh, {
+  export_all: '⇩ 全部导出（ZIP：CSV + KMZ）',
+  import: '⇧ 导入（ZIP / CSV / KMZ）',
+  import_hint: '选择本工具导出的 ZIP、别人的 ZIP 或 CSV、或 My Maps 的 KMZ（可多选）。相同编号保留较新的一条；KMZ 不会覆盖已有的点。',
+  welcome_body: '如果有之前的记录（本工具的 ZIP 或 My Maps 的 KMZ），请先导入，再开始记录。',
+  welcome_import: '导入之前的数据',
+});
+Object.assign(I18N.en, {
+  export_all: '⇩ Export all (ZIP: CSV + KMZ)',
+  import: '⇧ Import (ZIP / CSV / KMZ)',
+  import_hint: 'Select a ZIP exported by this tool, someone else\'s ZIP or CSV, or a My Maps KMZ (multiple allowed). Newer record wins for the same ID; KMZ never overwrites existing points.',
+  welcome_body: 'If you have earlier records (a ZIP from this tool or a My Maps KMZ), import them first, then start recording.',
+  welcome_import: 'Import earlier data',
+});
