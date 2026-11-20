@@ -1,10 +1,11 @@
 // 离线缓存：程序文件预先缓存；地图瓦片看过的会缓存（离线时可显示看过的区域）。
-const APP_CACHE = 'nest-app-v0.2';
+const APP_CACHE = 'nest-app-v0.3';
 const TILE_CACHE = 'nest-tiles-v1';
 const APP_FILES = [
-  './', 'index.html', 'style.css', 'i18n.js', 'app.js', 'manifest.webmanifest', 'icon.svg',
+  './', 'index.html', 'style.css', 'i18n.js', 'kmz.js', 'app.js', 'manifest.webmanifest', 'icon.svg',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
 ];
 const TILE_HOSTS = ['cyberjapandata.gsi.go.jp', 'tile.openstreetmap.org'];
 

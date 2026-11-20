@@ -162,3 +162,35 @@ const STATUS_COLORS = {
   building: '#7a6a3a', empty: '#7a7a7a', eggs: '#2f6fb3', nestlings: '#c07a00',
   fledged: '#1b7a43', failed: '#b3382c', unknown: '#555',
 };
+
+/* v0.3：My Maps（KMZ）関連 */
+Object.assign(I18N.ja, {
+  name_label: '名前', category: '区分', season_result: '今年の結果', legacy_text: 'My Maps の記録（原文）',
+  export_kmz: 'KMZ を書き出す（My Maps 用）',
+  import: '⇧ CSV / KMZ を読み込む',
+  import_hint: 'CSV（以前の書き出し・他の人の記録）または My Maps の KMZ を選択（複数可）。CSV は同じ ID なら新しい方を残し、KMZ は既にある地点を上書きしません。',
+  import_kmz_done: '{f}：{a} 件追加、既存 {s} 件はスキップ、多角形 {p} 件は未対応のため取り込まず',
+});
+Object.assign(I18N.zh, {
+  name_label: '名称', category: '分类', season_result: '今年结果', legacy_text: 'My Maps 上的记录（原文）',
+  export_kmz: '导出 KMZ（给 My Maps）',
+  import: '⇧ 导入 CSV / KMZ',
+  import_hint: '选择 CSV（之前导出的或别人的）或 My Maps 的 KMZ（可多选）。CSV 相同编号保留较新的一条；KMZ 不会覆盖已有的点。',
+  import_kmz_done: '{f}：新增 {a} 个，已有 {s} 个跳过，多边形 {p} 个暂不支持未导入',
+});
+Object.assign(I18N.en, {
+  name_label: 'Name', category: 'Category', season_result: 'Result this year', legacy_text: 'My Maps notes (original)',
+  export_kmz: 'Export KMZ (for My Maps)',
+  import: '⇧ Import CSV / KMZ',
+  import_hint: 'Select CSVs (earlier exports or other people\'s) or a My Maps KMZ (multiple allowed). CSV: newer record wins for the same ID. KMZ never overwrites existing points.',
+  import_kmz_done: '{f}: {a} added, {s} existing skipped, {p} polygons not imported (unsupported)',
+});
+OPTIONS.category = [
+  ['nest', { ja: '巣データ', zh: '巢数据', en: 'Nest data' }],
+  ['supplement', { ja: '補足データ', zh: '补充数据', en: 'Supplementary' }],
+];
+OPTIONS.season_result = [
+  ['success', { ja: '繁殖成功', zh: '繁殖成功', en: 'Success' }],
+  ['failed', { ja: '繁殖失敗', zh: '繁殖失败', en: 'Failed' }],
+  ['unused', { ja: '今年は未使用', zh: '今年未使用', en: 'Not used this year' }],
+];

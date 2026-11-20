@@ -9,8 +9,9 @@ const BACKUP_KEY = 'nest-recorder-backup';
 const REMIND_EVERY = 5;                         // 未書き出しの変更がこの件数ごとに催促
 const DEFAULT_VIEW = { lat: 43.07, lon: 141.34, zoom: 12 };
 
-const NEST_COLS = ['nest_id', 'created_at', 'updated_at', 'recorder', 'lat', 'lon', 'loc_source',
-  'gps_lat', 'gps_lon', 'gps_accuracy_m', 'species', 'nest_type', 'height_m', 'site', 'material', 'note'];
+const NEST_COLS = ['nest_id', 'name', 'category', 'layer', 'created_at', 'updated_at', 'recorder', 'lat', 'lon', 'loc_source',
+  'gps_lat', 'gps_lon', 'gps_accuracy_m', 'species', 'season_result', 'nest_type', 'height_m', 'site', 'material', 'note',
+  'mm_icon', 'mm_description', 'photo_urls'];
 const VISIT_COLS = ['visit_id', 'nest_id', 'visit_no', 'datetime', 'recorder', 'status', 'eggs', 'chicks',
   'adult', 'photo_ids', 'note', 'created_at', 'updated_at'];
 const EDIT_COLS = ['edited_at', 'recorder', 'table', 'record_id', 'field', 'old_value', 'new_value'];
@@ -28,7 +29,8 @@ function load() {
   d = d || {};
   // v0.1 → v0.2 移行
   d.nests = (d.nests || []).map((n) => ({ updated_at: n.created_at, recorder: '', nest_type: '', height_m: null,
-    site: '', material: '', ...n }));
+    site: '', material: '', name: '', category: 'nest', layer: '', season_result: '', mm_icon: '',
+    mm_description: '', photo_urls: '', ...n }));
   d.visits = d.visits || [];
   d.edits = (d.edits || []).map((e) => ({ recorder: '', ...e }));
   d.settings = { lang: guessLang(), recorder: '', ...(d.settings || {}) };
@@ -120,6 +122,7 @@ function applyI18n() {
     setChip(box, v);
   });
   if (watchId == null) setGpsStatus(t('gps_off'), 'off');
+  refreshLayerLabels();
   updateBadge();
 }
 function getChip(box) { return box.querySelector('button.on')?.dataset.value || ''; }
@@ -139,19 +142,34 @@ const layers = {
   'OpenStreetMap': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
 };
 layers['地理院 標準'].addTo(map);
-L.control.layers(layers, null, { position: 'topright' }).addTo(map);
+const layerCtl = L.control.layers(layers, null, { position: 'topright' }).addTo(map);
 L.control.scale({ imperial: false }).addTo(map);
 
+// 巣データ / 補足データ はレイヤーとして別々に表示・非表示できる
+const catLayers = { nest: L.layerGroup().addTo(map), supplement: L.layerGroup().addTo(map) };
+function refreshLayerLabels() {
+  for (const cat of ['nest', 'supplement']) {
+    layerCtl.removeLayer(catLayers[cat]);
+    layerCtl.addOverlay(catLayers[cat], optLabel('category', cat));
+  }
+}
+
 const markers = new Map();
+const RESULT_COLORS = { success: '#1b7a43', failed: '#222', unused: '#7a7a7a' };
 function nestIcon(n) {
   const lv = lastVisit(n.nest_id);
-  const color = lv ? STATUS_COLORS[lv.status] || STATUS_COLORS.unknown : '#2f5d50';
-  const label = n.nest_id.split('-').pop();
-  return L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14],
-    html: `<div class="nest-icon ${n.loc_source === 'manual' ? 'manual' : ''}" style="background:${color}">${esc(label)}</div>` });
+  const mm = (typeof MM_ICONS !== 'undefined' && n.mm_icon) ? MM_ICONS[n.mm_icon.split('-')[0]] : null;
+  let color = lv ? STATUS_COLORS[lv.status] || STATUS_COLORS.unknown
+    : RESULT_COLORS[n.season_result] || (n.mm_icon ? '#' + n.mm_icon.split('-')[1] : '#2f5d50');
+  if (n.mm_icon?.startsWith('1502')) color = '#e53935';                 // トビ関連（赤い星）
+  const label = n.loc_source === 'mymaps' ? (mm?.label ?? '') : n.nest_id.split('-').pop();
+  const small = n.category === 'supplement' ? ' small' : '';
+  return L.divIcon({ className: '', iconSize: small ? [18, 18] : [28, 28], iconAnchor: small ? [9, 9] : [14, 14],
+    html: `<div class="nest-icon${small} ${n.loc_source === 'manual' ? 'manual' : ''}" style="background:${color}">${esc(label)}</div>` });
 }
 function addMarker(n) {
-  const m = L.marker([n.lat, n.lon], { icon: nestIcon(n), draggable: true }).addTo(map);
+  const m = L.marker([n.lat, n.lon], { icon: nestIcon(n), draggable: true })
+    .addTo(catLayers[n.category === 'supplement' ? 'supplement' : 'nest']);
   m.on('click', () => openNest(n.nest_id));
   m.on('dragend', () => {
     const p = m.getLatLng(), nest = findNest(n.nest_id);
@@ -170,7 +188,8 @@ function addMarker(n) {
 function refreshMarker(id) {
   const n = findNest(id), m = markers.get(id);
   if (!n) { m?.remove(); markers.delete(id); return; }
-  if (!m) addMarker(n); else { m.setLatLng([n.lat, n.lon]); m.setIcon(nestIcon(n)); }
+  if (m) { m.remove(); markers.delete(id); }
+  addMarker(n);                                         // 区分が変わったときもレイヤーを付け替える
 }
 function fitAll() {
   if (db.nests.length) map.fitBounds(L.latLngBounds(db.nests.map((n) => [n.lat, n.lon])).pad(0.3), { maxZoom: 17 });
@@ -208,10 +227,11 @@ $('#btn-locate').onclick = () => {
 function createNest(lat, lon, src, f) {
   const now = nowIso();
   const nest = {
-    nest_id: newNestId(), created_at: now, updated_at: now, recorder: rec(),
+    nest_id: newNestId(), name: '', category: 'nest', layer: '', created_at: now, updated_at: now, recorder: rec(),
     lat: r6(lat), lon: r6(lon), loc_source: src,
     gps_lat: f ? r6(f.lat) : null, gps_lon: f ? r6(f.lon) : null, gps_accuracy_m: f ? Math.round(f.acc) : null,
-    species: '', nest_type: '', height_m: null, site: '', material: '', note: '',
+    species: '', season_result: '', nest_type: '', height_m: null, site: '', material: '', note: '',
+    mm_icon: '', mm_description: '', photo_urls: '',
   };
   db.nests.push(nest);
   logEdit('nests', nest.nest_id, '(created)', '', `${nest.lat},${nest.lon}`);
@@ -252,8 +272,20 @@ function openNest(id) {
   map.panBy([0, Math.min($('#sheet-nest').offsetHeight, innerHeight * 0.75) / 2], { animate: false });
 }
 function fillNest(n) {
-  $('#nest-title').textContent = n.nest_id;
-  $('#n-loc').textContent = `${n.lat}, ${n.lon}（${n.loc_source === 'gps' ? t('gps') : t('manual')}）`;
+  $('#nest-title').textContent = n.name || n.nest_id;
+  const src = { gps: t('gps'), manual: t('manual'), mymaps: 'My Maps' }[n.loc_source] || n.loc_source;
+  $('#n-loc').textContent = `${n.lat}, ${n.lon}（${src}）`;
+  $('#n-name').value = n.name || '';
+  $('#n-category').value = n.category || 'nest';
+  $('#n-result').value = n.season_result || '';
+  // My Maps から取り込んだ説明文と写真（原文のまま・読み取り専用）
+  $('#n-legacy').hidden = !n.mm_description && !n.photo_urls;
+  $('#n-legacy-text').textContent = n.mm_description || '';
+  const urls = (n.photo_urls || '').split(/\s+/).filter(Boolean);
+  // My Maps の写真は Google の権限が必要なことがある。表示できなければリンクだけ残す
+  $('#n-photos').innerHTML = urls.map((u, i) => /^https:\/\//.test(u)
+    ? `<a href="${esc(u)}" target="_blank" rel="noopener" class="photo-link">📷 ${i + 1}` +
+      `<img src="${esc(u)}" loading="lazy" alt="" onload="this.parentNode.firstChild.textContent=''" onerror="this.remove()"></a>` : '').join('');
   $('#n-gps').textContent = n.gps_lat != null ? `${n.gps_lat}, ${n.gps_lon}（±${n.gps_accuracy_m} m）` : t('none');
   $('#n-species').value = n.species || '';
   $('#n-type').value = n.nest_type || '';
@@ -279,12 +311,14 @@ function fillNest(n) {
 $('#nest-form').onsubmit = (ev) => {
   ev.preventDefault();
   const n = findNest(currentNest); if (!n) return;
-  const vals = { species: $('#n-species').value.trim(), nest_type: $('#n-type').value,
+  const vals = { name: $('#n-name').value.trim(), category: $('#n-category').value || 'nest',
+    season_result: $('#n-result').value,
+    species: $('#n-species').value.trim(), nest_type: $('#n-type').value,
     height_m: numOrNull($('#n-height').value), site: $('#n-site').value.trim(),
     material: $('#n-material').value.trim(), note: $('#n-note').value.trim() };
   let c = 0;
   for (const [k, v] of Object.entries(vals)) c += logEdit('nests', n.nest_id, k, n[k], v);
-  if (c) { Object.assign(n, vals, { updated_at: nowIso() }); changed(); }
+  if (c) { Object.assign(n, vals, { updated_at: nowIso() }); changed(); refreshMarker(n.nest_id); }
   closeSheets();
 };
 $('#n-delete').onclick = () => {
@@ -363,7 +397,8 @@ $('#btn-list').onclick = () => {
   const rows = db.nests.slice().sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
   $('#list-items').innerHTML = rows.length ? rows.map((n) => {
     const vs = visitsOf(n.nest_id), lv = vs[vs.length - 1];
-    return `<li data-id="${esc(n.nest_id)}"><b>${esc(n.nest_id)}</b> ${esc(n.species || t('no_species'))}
+    return `<li data-id="${esc(n.nest_id)}"><b>${esc(n.name || n.nest_id)}</b> ${esc(n.species || t('no_species'))}
+      ${n.season_result ? `<span class="muted">· ${esc(optLabel('season_result', n.season_result))}</span>` : ''}
       ${n.nest_type ? `<span class="muted">· ${esc(optLabel('nest_type', n.nest_type))}</span>` : ''}
       <small>${t('visits')} ${vs.length}${lv ? ` · ${t('last_visit')} ${fmtTime(lv.datetime)} ${esc(optLabel('status', lv.status))}` : ''}</small></li>`;
   }).join('') : `<li class="hint">${t('no_nests')}</li>`;
@@ -409,6 +444,13 @@ async function exportAll() {
   return ok;
 }
 $('#exp-all').onclick = exportAll;
+$('#exp-kmz').onclick = async () => {
+  const blob = await buildKmz({ nests: db.nests, visitsOf, optLabel,
+    layerNames: { nest: optLabel('category', 'nest'), supplement: optLabel('category', 'supplement') },
+    docName: db.settings.kmzName || 'Nest Recorder' });
+  shareOrDownload([new File([blob], `nests_${rec() || 'XX'}_${compact().slice(0, 12)}.kmz`,
+    { type: 'application/vnd.google-earth.kmz' })]);
+};
 $('#exp-geojson').onclick = () => {
   const gj = { type: 'FeatureCollection', features: db.nests.map((n) => {
     const lv = lastVisit(n.nest_id);
@@ -459,8 +501,25 @@ function mergeInto(list, key, items) {
   return { added, updated };
 }
 async function importFiles(files) {
-  const bad = []; const r = { n: 0, u: 0, v: 0, w: 0 };
+  const bad = []; const r = { n: 0, u: 0, v: 0, w: 0, k: [] };
   for (const f of files) {
+    if (/\.(kmz|kml)$/i.test(f.name)) {
+      try {
+        const res = await parseKmz(f);
+        let added = 0, skipped = 0;
+        const now = nowIso();
+        for (const n of res.nests) {
+          if (findNest(n.nest_id)) { skipped++; continue; }          // 既存の巣は上書きしない（端末での編集を守る）
+          db.nests.push({ ...n, created_at: now, updated_at: now, recorder: '' });
+          added++;
+        }
+        db.edits.push({ edited_at: now, recorder: rec(), table: 'import', record_id: f.name, field: '(kmz)',
+          old_value: '', new_value: `added ${added}, skipped ${skipped}, polygons ${res.polygons}` });
+        r.k.push(t('import_kmz_done', { f: f.name, a: added, s: skipped, p: res.polygons }));
+        if (!db.settings.kmzName) db.settings.kmzName = res.docName;
+      } catch (e) { console.warn(e); bad.push(f.name); }
+      continue;
+    }
     const { head, items } = parseCsv(await f.text());
     if (head.includes('nest_id') && head.includes('lat') && !head.includes('visit_id')) {
       const m = mergeInto(db.nests, 'nest_id', items); r.n += m.added; r.u += m.updated;
@@ -477,7 +536,8 @@ async function importFiles(files) {
   save();
   db.nests.forEach((n) => refreshMarker(n.nest_id));
   fitAll();
-  $('#import-result').textContent = t('import_done', r) + (bad.length ? '\n' + t('import_bad', { f: bad.join(', ') }) : '');
+  const csvPart = r.n + r.u + r.v + r.w || !r.k.length ? [t('import_done', r)] : [];
+  $('#import-result').textContent = [...r.k, ...csvPart, ...(bad.length ? [t('import_bad', { f: bad.join(', ') })] : [])].join('\n');
 }
 $('#btn-import').onclick = () => $('#file-import').click();
 $('#file-import').onchange = async (e) => {
