@@ -1,6 +1,6 @@
 {
-  "name": "巢记录（试做版）",
-  "short_name": "巢记录",
+  "name": "巣記録 Nest Recorder",
+  "short_name": "巣記録",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
