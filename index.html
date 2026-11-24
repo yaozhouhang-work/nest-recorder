@@ -14,10 +14,11 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.5</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.5.1</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
+      <button id="btn-help" class="icon" aria-label="使い方">？</button>
       <button id="btn-settings" class="icon" aria-label="settings">⚙</button>
     </span>
   </header>
@@ -121,6 +122,86 @@
     <p class="hint" id="import-result"></p>
     <hr>
     <p class="hint" id="storage-status"></p>
+  </section>
+
+  <!-- 使い方（日本語のみ） -->
+  <section id="sheet-help" class="sheet help" hidden lang="ja">
+    <div class="sheet-head"><strong>巣記録の使い方（試作版）</strong><button class="close" data-close>✕</button></div>
+    <p>スマホのブラウザで使う、巣の位置と観察記録のためのツールです。まだ試作版なので、気軽に触ってみてください。<b>入力したデータはこのスマホの中だけに保存され、どこにも送信されません。</b></p>
+
+    <h3>まずは触ってみる（3 分）</h3>
+    <ol>
+      <li>右上の <b>⚙</b> で「記録者コード」（自分のイニシャルなど英字 2〜4 文字）を入れて保存</li>
+      <li><b>「＋ 現在地に巣を登録」</b>を押す（位置情報の利用を許可してください）</li>
+      <li>出てきた画面で種などを入れて保存 → <b>「＋ 確認を記録」</b>で状態や卵数を記録</li>
+      <li><b>💾 データ</b> →「すべて書き出す」で、記録が ZIP ファイルとして保存されます</li>
+    </ol>
+
+    <h3>1. 準備</h3>
+    <ul>
+      <li><b>ホーム画面に追加</b>するとアプリのように使えて、データも消えにくくなります
+        <ul>
+          <li>iPhone（Safari）：共有ボタン →「ホーム画面に追加」</li>
+          <li>Android（Chrome）：右上のメニュー →「ホーム画面に追加」</li>
+        </ul></li>
+      <li>初めて開くと「はじめに」が出ます。試すだけなら「新しく始める」を選んでください</li>
+      <li><b>記録者コード</b>は ID に使われます。複数人の記録が混ざらないようにするためのものです</li>
+    </ul>
+
+    <h3>2. 地図の見方</h3>
+    <ul>
+      <li><b>📍 現在地</b>：自分の位置と GPS の誤差（右上に「GPS ±◯ m」）を表示</li>
+      <li><b>地図右上の重なったアイコン</b>：地図の種類（地理院 標準・写真 / OSM）と、「巣データ」「補足データ」の表示切替</li>
+      <li><b>マーカー</b>
+        <ul>
+          <li>数字：自分で登録した巣（点線の枠は手動で位置を決めたもの）</li>
+          <li>色：最新の確認記録の状態（卵あり = 青、雛あり = 橙、巣立ち = 緑、失敗 = 赤 など）</li>
+          <li>✓ 繁殖成功 / ✕ 繁殖失敗 / i 今年は未使用 / ★ トビ関連（My Maps から読み込んだ地点）</li>
+        </ul></li>
+    </ul>
+
+    <h3>3. 巣を登録する</h3>
+    <ul>
+      <li><b>「＋ 現在地に巣を登録」</b>：GPS の位置で登録します。誤差が 30 m を超えるときは確認が出ます</li>
+      <li><b>「👆 地図で指定」</b>：GPS が使えないときは、地図をタップして位置を決めます</li>
+      <li><b>位置の修正</b>：地図上のマーカーをドラッグします（GPS の元の値は残ります）</li>
+      <li><b>巣の情報</b>（巣を開いて「巣の情報」）：名前、区分、今年の結果、種、巣のタイプ、高さ、営巣場所、巣材、備考</li>
+    </ul>
+
+    <h3>4. 確認記録をつける</h3>
+    <p>巣をタップ →「<b>＋ 確認を記録</b>」</p>
+    <ul>
+      <li>日時（あとから入力するときは変更できます）、状態、卵数、雛数、親鳥、写真番号、備考</li>
+      <li>選択ボタンはもう一度押すと解除できます</li>
+      <li><b>空欄は「記録していない」</b>という意味で、0 とは区別されます</li>
+      <li>何回目の確認かは自動で数えます</li>
+    </ul>
+
+    <h3>5. データの保存と読み込み（💾 データ）</h3>
+    <ul>
+      <li>画面上部の赤い<b>「未書き出し ◯ 件」</b>は、まだ保存していない変更の数です。5 件ごとと、アプリを開いたときに書き出しをお願いします</li>
+      <li><b>「すべて書き出す」</b>：ZIP ファイル 1 つにまとめて保存します（中身は表 3 つの CSV と、Google My Maps 用の KMZ）
+        <ul>
+          <li>iPhone：共有メニューで「ファイルに保存」</li>
+          <li>Android：ダウンロードフォルダに保存</li>
+        </ul></li>
+      <li><b>「読み込む」</b>：このツールの ZIP、他の人の ZIP / CSV、Google My Maps の KMZ を読み込めます。同じ巣が重複することはありません</li>
+    </ul>
+
+    <h3>6. 設定（⚙）</h3>
+    <ul>
+      <li>言語（日本語 / 中文 / English）</li>
+      <li>記録者コード</li>
+      <li>My Maps 連携（任意）：前回以降に追加・修正した巣だけを、My Maps 用の KMZ にします</li>
+    </ul>
+
+    <h3>7. 注意</h3>
+    <ul>
+      <li>これは<b>試作版</b>です。項目や分類はまだ仮のものです</li>
+      <li><b>My Maps とのデータの統合方法は検討中</b>です</li>
+      <li>ブラウザの履歴・データを消すと、記録も消えます。大事な記録は必ず書き出してください</li>
+      <li>修正や削除はすべて「修正履歴」に残ります</li>
+    </ul>
   </section>
 
   <!-- 設定 -->

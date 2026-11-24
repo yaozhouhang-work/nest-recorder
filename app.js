@@ -617,6 +617,7 @@ function welcome() {
   modal(t('welcome_title'), t('welcome_body'), [
     [t('welcome_import'), 'primary', () => { openData(); $('#file-import').click(); }],
     [t('welcome_new'), '', () => { db.welcomed = true; save(); if (!rec()) openSettings(); }],
+    ['使い方を見る', '', () => { db.welcomed = true; save(); openHelp(); }],
   ]);
 }
 
@@ -629,6 +630,8 @@ function openSettings() {
   $('#sheet-settings').hidden = false;
 }
 $('#btn-settings').onclick = openSettings;
+function openHelp() { closeSheets(); $('#sheet-help').hidden = false; $('#sheet-help').scrollTop = 0; }
+$('#btn-help').onclick = openHelp;
 $('#s-lang').onchange = () => { db.settings.lang = $('#s-lang').value; save(); applyI18n(); };
 $('#s-save').onclick = () => {
   const code = $('#s-recorder').value.trim().toUpperCase().replace(/[^A-Z]/g, '');

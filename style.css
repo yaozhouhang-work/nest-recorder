@@ -120,3 +120,8 @@ details.nest-details > summary { font-weight: 600; cursor: pointer; }
 .row.check > span { width: auto; padding-top: 0; color: var(--fg); }
 ol.steps { padding-left: 20px; margin: 8px 0; }
 ol.steps li { margin: 4px 0; }
+.sheet.help { max-height: 88%; font-size: 15px; line-height: 1.6; }
+.sheet.help h3 { font-size: 15px; margin: 18px 0 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sheet.help ol, .sheet.help ul { padding-left: 20px; margin: 4px 0; }
+.sheet.help li { margin: 3px 0; }
+.sheet.help ul ul { margin: 2px 0; color: var(--muted); }
