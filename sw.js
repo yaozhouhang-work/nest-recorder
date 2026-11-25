@@ -1,5 +1,5 @@
 // 离线缓存：程序文件预先缓存；地图瓦片看过的会缓存（离线时可显示看过的区域）。
-const APP_CACHE = 'nest-app-v0.7.1';
+const APP_CACHE = 'nest-app-v0.8';
 const TILE_CACHE = 'nest-tiles-v1';
 const APP_FILES = [
   './', 'index.html', 'style.css', 'i18n.js', 'kmz.js', 'drive.js', 'app.js', 'manifest.webmanifest', 'icon.svg',

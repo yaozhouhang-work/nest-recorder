@@ -114,7 +114,28 @@ async function drivePickFiles() {
   const files = [];
   for (const d of docs) {
     const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(d.id)}?alt=media&supportsAllDrives=true`);
-    files.push(new File([await res.blob()], d.name));
+    const file = new File([await res.blob()], d.name);
+    file.driveId = d.id;                                  // まとめた後に「過去分」へ移すため
+    files.push(file);
   }
   return files;
+}
+/* 保存先フォルダの中のサブフォルダ（なければ作る）。drive.file なので、このツールが作ったものだけが見つかる */
+async function driveEnsureSubfolder(name) {
+  const parent = db.settings.driveFolder.id;
+  const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and '${parent}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`);
+  const list = await (await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`)).json();
+  if (list.files?.length) return list.files[0].id;
+  const res = await driveFetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parent] }),
+  });
+  return (await res.json()).id;
+}
+/* ファイルを保存先フォルダから別のフォルダへ移す */
+async function driveMove(fileId, toFolder) {
+  const meta = await (await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=parents&supportsAllDrives=true`)).json();
+  const from = (meta.parents || []).join(',');
+  await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?addParents=${toFolder}` +
+    `${from ? '&removeParents=' + from : ''}&supportsAllDrives=true&fields=id`, { method: 'PATCH' });
 }

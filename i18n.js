@@ -142,7 +142,12 @@ const OPTIONS = {
   status: [
     ['building', { ja: '造巣中', zh: '筑巢中', en: 'Building' }],
     ['empty', { ja: '完成・空', zh: '已完成·空', en: 'Complete, empty' }],
-    ['eggs', { ja: '卵あり', zh: '有卵', en: 'Eggs' }],
+    ['first_egg', { ja: '初卵', zh: '初卵', en: 'First egg' }],
+    ['laying', { ja: '産卵中', zh: '产卵中', en: 'Laying' }],
+    ['clutch_complete', { ja: '全卵', zh: '产卵完成', en: 'Clutch complete' }],
+    ['incubating', { ja: '抱卵中', zh: '孵卵中', en: 'Incubating' }],
+    ['hatching', { ja: '孵化', zh: '孵化', en: 'Hatching' }],
+    ['eggs', { ja: '卵あり（段階不明）', zh: '有卵（阶段不明）', en: 'Eggs (stage unknown)' }],   // v0.7 までの「卵あり」
     ['nestlings', { ja: '雛あり', zh: '有雏', en: 'Nestlings' }],
     ['fledged', { ja: '巣立ち', zh: '离巢', en: 'Fledged' }],
     ['failed', { ja: '失敗・放棄', zh: '失败·弃巢', en: 'Failed / abandoned' }],
@@ -159,7 +164,8 @@ const OPTIONS = {
 };
 
 const STATUS_COLORS = {
-  building: '#7a6a3a', empty: '#7a7a7a', eggs: '#2f6fb3', nestlings: '#c07a00',
+  building: '#7a6a3a', empty: '#7a7a7a', first_egg: '#6fa3d8', laying: '#4a88c7', clutch_complete: '#2f6fb3',
+  incubating: '#24508a', hatching: '#d99a2b', eggs: '#2f6fb3', nestlings: '#c07a00',
   fledged: '#1b7a43', failed: '#b3382c', unknown: '#555',
 };
 
@@ -189,6 +195,66 @@ Object.assign(I18N.en, {
 Object.assign(I18N.ja, { visit_no_label: '回数', new_status: '＋ 新しい状態', new_status_prompt: '追加する状態の名前（例：捕食された）' });
 Object.assign(I18N.zh, { visit_no_label: '第几次', new_status: '＋ 新状态', new_status_prompt: '新状态的名称（例：被捕食）' });
 Object.assign(I18N.en, { visit_no_label: 'Visit no.', new_status: '+ New status', new_status_prompt: 'Name of the new status (e.g. Predated)' });
+/* v0.8：巣の名前の自動付番 */
+Object.assign(I18N.ja, { name_label: '巣の名前', name_hint: '空欄のまま種名を入れて保存すると「年_種名N」（例：26_ヒヨドリ3 ＝ 2026 年のヒヨドリ 3 つ目）が自動で付きます。手で直すこともできます。', name_auto: '自動：{n}' });
+Object.assign(I18N.zh, { name_label: '巢名', name_hint: '留空并填写种名后保存，会自动命名为“年_种名N”（例：26_ヒヨドリ3 = 2026 年ヒヨドリ的第 3 个巢）。也可以手动修改。', name_auto: '自动：{n}' });
+Object.assign(I18N.en, { name_label: 'Nest name', name_hint: 'Leave blank and enter a species: on saving it is named “YY_speciesN” automatically (e.g. 26_ヒヨドリ3 = 3rd ヒヨドリ nest of 2026). You can still edit it.', name_auto: 'Auto: {n}' });
+/* v0.8：データの全消去・取り消し */
+Object.assign(I18N.ja, {
+  clear_title: 'この端末のデータを消す', clear_all: 'この端末のデータをすべて消す',
+  clear_hint: '巣・確認記録・修正履歴を消します（テストの記録を消したいとき用）。記録者コード・言語・追加した状態・ドライブのフォルダは残ります。直前の 1 回だけ元に戻せます。',
+  clear_confirm1: '巣 {n} 件、確認記録 {v} 件をこの端末から消します。',
+  clear_unexported: '書き出していない変更が {u} 件あります。消す前に書き出すことをおすすめします。',
+  clear_confirm2: '本当に消す場合は「削除」と入力してください。', clear_word: '削除', clear_done: '消しました。設定画面の「元に戻す」で、1 回だけ戻せます。',
+  undo_clear: '元に戻す（{t} に消したデータ）', undo_done: '元に戻しました。',
+});
+Object.assign(I18N.zh, {
+  clear_title: '清除本机数据', clear_all: '清除本机的全部数据',
+  clear_hint: '清除巢、访查记录和修改记录（用于删掉测试数据）。记录者代码、语言、自己加的状态、网盘文件夹会保留。可以撤销最近的 1 次。',
+  clear_confirm1: '将从本机清除 {n} 个巢、{v} 条访查记录。',
+  clear_unexported: '还有 {u} 处修改没有导出，建议先导出再清除。',
+  clear_confirm2: '确定要清除，请输入“删除”。', clear_word: '删除', clear_done: '已清除。可以在设置里点“撤销”恢复一次。',
+  undo_clear: '撤销（恢复 {t} 清除的数据）', undo_done: '已恢复。',
+});
+Object.assign(I18N.en, {
+  clear_title: 'Clear data on this device', clear_all: 'Clear all data on this device',
+  clear_hint: 'Deletes nests, visits and the edit log (e.g. test records). Recorder code, language, added statuses and the Drive folder are kept. The last clear can be undone once.',
+  clear_confirm1: 'This removes {n} nests and {v} visits from this device.',
+  clear_unexported: '{u} changes have not been exported. Export first is recommended.',
+  clear_confirm2: 'Type "DELETE" to confirm.', clear_word: 'DELETE', clear_done: 'Cleared. Use “Undo” in Settings to restore once.',
+  undo_clear: 'Undo (restore data cleared at {t})', undo_done: 'Restored.',
+});
+/* v0.8：ファイルをまとめる */
+Object.assign(I18N.ja, { import_removed: '削除済みのため外したもの：巣 {n} 件、確認記録 {v} 件（誰かが消した記録）' });
+Object.assign(I18N.zh, { import_removed: '因已被删除而排除：巢 {n} 个、访查 {v} 条（有人删过的记录）' });
+Object.assign(I18N.en, { import_removed: 'Left out because they were deleted: {n} nests, {v} visits' });
+Object.assign(I18N.ja, {
+  merge: '⇄ 複数のファイルをまとめる', drive_merge: '⇄ ドライブのファイルをまとめる',
+  merge_hint: '何人分かの ZIP を選ぶと、この端末のデータに取り込んだうえで、全部入りの ZIP（nest-records_ALL_…）を 1 つ作ります。次の調査の前は、この 1 つを読み込むだけで済みます。消した記録は復活しません。',
+  merge_confirm: '{n} 個のファイルをこの端末のデータに取り込み、まとめた ZIP を作ります。よろしいですか？',
+  merge_saved_local: 'まとめた ZIP を書き出しました：{f}', merge_saved_drive: 'ドライブにも保存しました。',
+  merge_drive_skip: 'ドライブには保存していません（「⇪ ドライブに保存」で保存できます）。',
+  merge_archive_confirm: '元のファイル {n} 個を、保存先フォルダ内の「過去分」フォルダに移しますか？',
+  merge_archived: '{n} 個を「過去分」に移しました。', merge_archive_failed: '移せなかったファイル：{f}（権限がない可能性があります。手で移してください）',
+});
+Object.assign(I18N.zh, {
+  merge: '⇄ 合并多个文件', drive_merge: '⇄ 合并网盘里的文件',
+  merge_hint: '选几个人的 ZIP，先合并进本机数据，再生成一个包含全部内容的 ZIP（nest-records_ALL_…）。下次调查前只要读入这一个。删掉的记录不会复活。',
+  merge_confirm: '把 {n} 个文件合并进本机数据，并生成合并后的 ZIP。确定吗？',
+  merge_saved_local: '已导出合并后的 ZIP：{f}', merge_saved_drive: '也已存到网盘。',
+  merge_drive_skip: '没有存到网盘（可以点“⇪ 存到网盘”）。',
+  merge_archive_confirm: '把原来的 {n} 个文件移到保存文件夹里的“過去分”文件夹吗？',
+  merge_archived: '已把 {n} 个文件移到“過去分”。', merge_archive_failed: '没能移动的文件：{f}（可能没有权限，请手动移动）',
+});
+Object.assign(I18N.en, {
+  merge: '⇄ Merge several files', drive_merge: '⇄ Merge files on Drive',
+  merge_hint: 'Pick several people\'s ZIPs: they are merged into this device\'s data and one complete ZIP (nest-records_ALL_…) is made. Before the next survey, load just that one. Deleted records do not come back.',
+  merge_confirm: 'Merge {n} files into this device\'s data and make a merged ZIP?',
+  merge_saved_local: 'Merged ZIP exported: {f}', merge_saved_drive: 'Also saved to Drive.',
+  merge_drive_skip: 'Not saved to Drive (use “⇪ Save to Drive”).',
+  merge_archive_confirm: 'Move the {n} original files into the “過去分” folder inside the Drive folder?',
+  merge_archived: 'Moved {n} files to “過去分”.', merge_archive_failed: 'Could not move: {f} (maybe no permission — please move by hand)',
+});
 /* v0.7：Google ドライブ連携（任意） */
 Object.assign(I18N.ja, {
   drive_title: 'Google ドライブ（ラボの共有フォルダ）', drive_save: '⇪ ドライブに保存', drive_load: '⇩ ドライブから読み込む',

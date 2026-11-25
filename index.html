@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.7.1</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.8</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -51,6 +51,7 @@
       <div class="row ro"><span data-i18n="location"></span><b id="n-loc"></b></div>
       <div class="row ro"><span data-i18n="gps_raw"></span><b id="n-gps"></b></div>
       <label class="row"><span data-i18n="name_label"></span><input id="n-name" autocomplete="off"></label>
+      <p class="hint" data-i18n="name_hint"></p>
       <label class="row"><span data-i18n="category"></span><select id="n-category" data-options="category"></select></label>
       <label class="row"><span data-i18n="season_result"></span><select id="n-result" data-options="season_result"></select></label>
       <label class="row"><span data-i18n="species"></span>
@@ -112,6 +113,7 @@
       <div class="actions col">
         <button id="drive-save" class="primary" data-i18n="drive_save"></button>
         <button id="drive-load" class="wide" data-i18n="drive_load"></button>
+        <button id="drive-merge" class="wide" data-i18n="drive_merge"></button>
         <button id="drive-pick" class="wide" data-i18n="drive_pick"></button>
       </div>
       <p class="hint" data-i18n="drive_note"></p>
@@ -132,6 +134,8 @@
     <hr>
     <button id="btn-import" class="wide" data-i18n="import"></button>
     <p class="hint" data-i18n="import_hint"></p>
+    <button id="btn-merge" class="wide" data-i18n="merge"></button>
+    <p class="hint" data-i18n="merge_hint"></p>
     <p class="hint" id="import-result"></p>
     <hr>
     <p class="hint" id="storage-status"></p>
@@ -168,7 +172,7 @@
       <li><b>マーカー</b>
         <ul>
           <li>数字：自分で登録した巣（点線の枠は手動で位置を決めたもの）</li>
-          <li>色：最新の確認記録の状態（卵あり = 青、雛あり = 橙、巣立ち = 緑、失敗 = 赤 など）</li>
+          <li>色：最新の確認記録の状態（卵の段階 = 青系、孵化・雛あり = 橙、巣立ち = 緑、失敗 = 赤 など）</li>
           <li>✓ 繁殖成功 / ✕ 繁殖失敗 / i 今年は未使用 / ★ トビ関連（My Maps から読み込んだ地点）</li>
         </ul></li>
     </ul>
@@ -179,12 +183,14 @@
       <li><b>「👆 地図で指定」</b>：GPS が使えないときは、地図をタップして位置を決めます</li>
       <li><b>位置の修正</b>：地図上のマーカーをドラッグします（GPS の元の値は残ります）</li>
       <li><b>巣の情報</b>（巣を開いて「巣の情報」）：名前、区分、今年の結果、種、巣のタイプ、高さ、営巣場所、巣材、備考</li>
+      <li><b>巣の名前</b>：空欄のまま種名を入れて保存すると「年_種名N」（例：26_ヒヨドリ3 ＝ 2026 年のヒヨドリ 3 つ目）が自動で付きます</li>
     </ul>
 
     <h3>4. 確認記録をつける</h3>
     <p>巣をタップ →「<b>＋ 確認を記録</b>」</p>
     <ul>
       <li>日時（あとから入力するときは変更できます）、状態、卵数、雛数、親鳥、写真番号、備考</li>
+      <li>状態：造巣中 → 完成・空 → 初卵 → 産卵中 → 全卵 → 抱卵中 → 孵化 → 雛あり → 巣立ち（失敗・放棄、不明 も選べます）。以前の「卵あり」は「卵あり（段階不明）」になりました</li>
       <li>選択ボタンはもう一度押すと解除できます</li>
       <li><b>空欄は「記録していない」</b>という意味で、0 とは区別されます</li>
       <li>何回目の確認かは自動で数えます。以前の記録（My Maps の備考など）がある場合は「回数」を直せます。直した回から後は、その続きで数えます</li>
@@ -200,6 +206,8 @@
           <li>Android：ダウンロードフォルダに保存</li>
         </ul></li>
       <li><b>「読み込む」</b>：このツールの ZIP、他の人の ZIP / CSV、Google My Maps の KMZ を読み込めます。同じ巣が重複することはありません</li>
+      <li><b>「複数のファイルをまとめる」</b>：何人分かの ZIP を選ぶと、この端末に取り込んだうえで全部入りの ZIP（nest-records_ALL_…）を 1 つ作ります。次の調査の前はこれ 1 つを読み込めば OK。誰かが消した記録は復活しません</li>
+      <li><b>Google ドライブ</b>：ラボの共有フォルダに保存・読み込み・まとめができます。まとめた後の元のファイルは「過去分」フォルダに移せます。初めてのときは「保存先フォルダを選ぶ」から</li>
     </ul>
 
     <h3>6. 設定（⚙）</h3>
@@ -207,6 +215,7 @@
       <li>言語（日本語 / 中文 / English）</li>
       <li>記録者コード</li>
       <li>My Maps 連携（任意）：前回以降に追加・修正した巣だけを、My Maps 用の KMZ にします</li>
+      <li><b>この端末のデータをすべて消す</b>：テストの記録を消したいとき用。「削除」と入力して実行します。直前の 1 回だけ「元に戻す」で戻せます</li>
     </ul>
 
     <h3>7. 注意</h3>
@@ -229,6 +238,13 @@
     <label class="row check"><input type="checkbox" id="s-mymaps"><span data-i18n="mm_option"></span></label>
     <p class="hint" data-i18n="mm_option_hint"></p>
     <div class="actions"><span></span><button id="s-save" class="primary" data-i18n="save"></button></div>
+    <hr>
+    <h3 class="sub" data-i18n="clear_title"></h3>
+    <p class="hint" data-i18n="clear_hint"></p>
+    <div class="actions col">
+      <button type="button" id="s-clear" class="danger" data-i18n="clear_all"></button>
+      <button type="button" id="s-undo-clear" class="wide" hidden></button>
+    </div>
   </section>
 
   <!-- モーダル（書き出しのお願い / はじめに） -->
@@ -242,6 +258,7 @@
 
   <!-- accept は付けない：スマホでは KMZ の種類が判別されず選べなくなるため。種類は読み込み時に判定 -->
   <input type="file" id="file-import" multiple hidden>
+  <input type="file" id="file-merge" multiple hidden>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
