@@ -8,9 +8,10 @@
 'use strict';
 
 const DRIVE_CONFIG = {
-  clientId: '',   // OAuth クライアント ID（…apps.googleusercontent.com）
-  apiKey: '',     // API キー（Google Picker 用。HTTP リファラーで制限する）
-  appId: '',      // Google Cloud のプロジェクト番号
+  // ブラウザ用の公開値（秘密ではない）。安全性は Google Cloud 側の生成元／リファラー制限とテストユーザーで担保
+  clientId: '557575965611-u86447dni28q1381mg6h3794do2e5vht.apps.googleusercontent.com',   // OAuth クライアント ID
+  apiKey: 'AIzaSyAjreV5Jyjw4GU7c3aRLNcu1cNuBxV1RWQ',   // API キー（Google Picker 用。HTTP リファラーで制限済み）
+  appId: '557575965611',                              // Google Cloud のプロジェクト番号
 };
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -70,9 +71,11 @@ function drivePicker(token, views, multi) {
 }
 function folderViews() {
   const P = google.picker;
+  const f = () => new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(FOLDER_MIME);
   return [
-    new P.DocsView(P.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(FOLDER_MIME),
-    new P.DocsView().setEnableDrives(true).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(FOLDER_MIME),
+    f().setParent('root').setLabel('マイドライブ'),             // マイドライブをフォルダ階層で表示
+    f().setOwnedByMe(false).setLabel('共有アイテム'),           // 他の人から共有されたフォルダ
+    f().setEnableDrives(true).setLabel('共有ドライブ'),         // 共有ドライブ
   ];
 }
 async function driveFetch(url, opt = {}) {
