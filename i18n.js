@@ -189,6 +189,28 @@ Object.assign(I18N.en, {
 Object.assign(I18N.ja, { visit_no_label: '回数', new_status: '＋ 新しい状態', new_status_prompt: '追加する状態の名前（例：捕食された）' });
 Object.assign(I18N.zh, { visit_no_label: '第几次', new_status: '＋ 新状态', new_status_prompt: '新状态的名称（例：被捕食）' });
 Object.assign(I18N.en, { visit_no_label: 'Visit no.', new_status: '+ New status', new_status_prompt: 'Name of the new status (e.g. Predated)' });
+/* v0.7：Google ドライブ連携（任意） */
+Object.assign(I18N.ja, {
+  drive_title: 'Google ドライブ（ラボの共有フォルダ）', drive_save: '⇪ ドライブに保存', drive_load: '⇩ ドライブから読み込む',
+  drive_pick: '保存先フォルダを選ぶ', drive_folder: '保存先：{n}', drive_no_folder: '保存先フォルダがまだ選ばれていません。',
+  drive_note: '自分の記録を新しいファイルとして保存します（他の人のファイルは変更しません）。読み込みでは他の人のファイルも選べ、同じ ID は新しい方が残ります。電波のないときは端末に記録し、あとで保存してください。',
+  drive_saving: '保存中…', drive_saved: '保存しました：{f}', drive_offline: 'オフラインのため Google ドライブにつながりません。電波のある場所でもう一度押してください。',
+  drive_failed: 'Google ドライブでエラー：{m}',
+});
+Object.assign(I18N.zh, {
+  drive_title: 'Google 网盘（lab 共享文件夹）', drive_save: '⇪ 存到网盘', drive_load: '⇩ 从网盘读入',
+  drive_pick: '选择保存的文件夹', drive_folder: '保存到：{n}', drive_no_folder: '还没有选择保存的文件夹。',
+  drive_note: '把自己的记录存成一个新文件（不会改动别人的文件）。读入时也可以选别人的文件，同一编号保留较新的一条。没信号时先记在手机里，之后再存。',
+  drive_saving: '保存中…', drive_saved: '已保存：{f}', drive_offline: '现在离线，连不上 Google 网盘。请到有信号的地方再点一次。',
+  drive_failed: 'Google 网盘出错：{m}',
+});
+Object.assign(I18N.en, {
+  drive_title: 'Google Drive (lab shared folder)', drive_save: '⇪ Save to Drive', drive_load: '⇩ Load from Drive',
+  drive_pick: 'Choose folder', drive_folder: 'Folder: {n}', drive_no_folder: 'No folder chosen yet.',
+  drive_note: 'Your records are saved as a new file (other people\'s files are never changed). When loading you can pick anyone\'s files; for the same ID the newer record wins. Offline, keep recording on the phone and save later.',
+  drive_saving: 'Saving…', drive_saved: 'Saved: {f}', drive_offline: 'Offline — cannot reach Google Drive. Try again where you have signal.',
+  drive_failed: 'Google Drive error: {m}',
+});
 OPTIONS.category = [
   ['nest', { ja: '巣データ', zh: '巢数据', en: 'Nest data' }],
   ['supplement', { ja: '補足データ', zh: '补充数据', en: 'Supplementary' }],

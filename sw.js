@@ -1,8 +1,8 @@
 // 离线缓存：程序文件预先缓存；地图瓦片看过的会缓存（离线时可显示看过的区域）。
-const APP_CACHE = 'nest-app-v0.6';
+const APP_CACHE = 'nest-app-v0.7';
 const TILE_CACHE = 'nest-tiles-v1';
 const APP_FILES = [
-  './', 'index.html', 'style.css', 'i18n.js', 'kmz.js', 'app.js', 'manifest.webmanifest', 'icon.svg',
+  './', 'index.html', 'style.css', 'i18n.js', 'kmz.js', 'drive.js', 'app.js', 'manifest.webmanifest', 'icon.svg',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
@@ -31,6 +31,8 @@ self.addEventListener('fetch', (e) => {
     }));
     return;
   }
+  // 只缓存本站和 unpkg 的程序文件；Google 登录、网盘数据等一律不经过缓存
+  if (url.origin !== self.location.origin && url.hostname !== 'unpkg.com') return;
   // 程序文件：联网优先（方便更新），断网时用缓存
   e.respondWith(fetch(e.request).then((res) => {
     if (res.ok) caches.open(APP_CACHE).then((c) => c.put(e.request, res.clone()));

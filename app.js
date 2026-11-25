@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.6
+/* 巣記録 試作版 v0.7
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（localStorage）に保存。正式データは書き出した CSV。
  */
@@ -477,7 +477,7 @@ async function shareOrDownload(files) {
   return true;
 }
 /* 書き出しは 1 つの ZIP にまとめる：CSV 3 件（完全なバックアップ）+ KMZ（My Maps 用） */
-async function exportAll() {
+async function buildZip() {
   const tag = `${rec() || 'XX'}_${compact().slice(0, 12)}`;
   const kmz = await buildKmz({ nests: db.nests, visitsOf, optLabel,
     layerNames: { nest: optLabel('category', 'nest'), supplement: optLabel('category', 'supplement') },
@@ -488,11 +488,54 @@ async function exportAll() {
   zip.file(`edits_${tag}.csv`, toCsv(db.edits, EDIT_COLS));
   zip.file(`mymaps_${tag}.kmz`, kmz);
   const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip', compression: 'DEFLATE' });
-  const ok = await shareOrDownload([new File([blob], `nest-records_${tag}.zip`, { type: 'application/zip' })]);
-  if (ok) { db.lastExport = nowIso(); db.unexported = 0; save(); updateBadge(); showDataInfo(); }
+  return { blob, name: `nest-records_${tag}.zip` };
+}
+function markExported() { db.lastExport = nowIso(); db.unexported = 0; save(); updateBadge(); showDataInfo(); }
+async function exportAll() {
+  const { blob, name } = await buildZip();
+  const ok = await shareOrDownload([new File([blob], name, { type: 'application/zip' })]);
+  if (ok) markExported();
   return ok;
 }
 $('#exp-all').onclick = exportAll;
+
+// ================= Google ドライブ（任意・drive.js） =================
+function driveMsg(s) { $('#drive-result').textContent = s; }
+function driveErr(e) {
+  console.warn(e);
+  driveMsg(String(e.message).startsWith('not_loaded') || !navigator.onLine ? t('drive_offline') : t('drive_failed', { m: e.message }));
+}
+function showDriveInfo() {
+  $('#drive-section').hidden = !driveEnabled();
+  if (!driveEnabled()) return;
+  const f = db.settings.driveFolder;
+  $('#drive-folder').textContent = f ? t('drive_folder', { n: f.name }) : t('drive_no_folder');
+  $('#drive-save').disabled = $('#drive-load').disabled = !f;
+}
+$('#drive-pick').onclick = async () => {
+  try { const f = await drivePickFolder(); if (f) driveMsg(''); showDriveInfo(); } catch (e) { driveErr(e); }
+};
+$('#drive-save').onclick = async () => {
+  if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
+  try {
+    await driveAuth();                       // ログイン画面はクリック直後に出す（ポップアップのブロック対策）
+    driveMsg(t('drive_saving'));
+    const { blob, name } = await buildZip();
+    await driveUpload(blob, name);
+    markExported();
+    driveMsg(t('drive_saved', { f: name }));
+  } catch (e) { driveErr(e); }
+};
+$('#drive-load').onclick = async () => {
+  if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
+  try {
+    const files = await drivePickFiles();
+    if (!files.length) return;
+    driveMsg('');
+    await importFiles(files);
+    openData();
+  } catch (e) { driveErr(e); }
+};
 
 // ================= 読み込み =================
 function parseCsv(text) {
@@ -595,7 +638,7 @@ $('#file-import').onchange = async (e) => {
 };
 
 // ================= データ画面・催促 =================
-function openData() { closeSheets(); showDataInfo(); $('#sheet-data').hidden = false; }
+function openData() { closeSheets(); showDataInfo(); showDriveInfo(); drivePreload(); $('#sheet-data').hidden = false; }
 $('#btn-data').onclick = openData;
 $('#unexported').onclick = openData;
 async function showDataInfo() {

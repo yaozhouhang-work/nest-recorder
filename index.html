@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.6</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.7</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -105,6 +105,18 @@
       <button id="exp-all" class="primary" data-i18n="export_all"></button>
     </div>
     <p class="hint" id="exp-last"></p>
+    <div id="drive-section" hidden>
+      <hr>
+      <h3 class="sub" data-i18n="drive_title"></h3>
+      <p class="hint" id="drive-folder"></p>
+      <div class="actions col">
+        <button id="drive-save" class="primary" data-i18n="drive_save"></button>
+        <button id="drive-load" class="wide" data-i18n="drive_load"></button>
+        <button id="drive-pick" class="wide" data-i18n="drive_pick"></button>
+      </div>
+      <p class="hint" data-i18n="drive_note"></p>
+      <p class="hint" id="drive-result"></p>
+    </div>
     <div id="mm-section" hidden>
       <hr>
       <h3 class="sub" data-i18n="mm_title"></h3>
@@ -235,6 +247,7 @@
   <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="i18n.js"></script>
   <script src="kmz.js"></script>
+  <script src="drive.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
