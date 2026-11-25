@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.8</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.9</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -137,8 +137,17 @@
     <button id="btn-merge" class="wide" data-i18n="merge"></button>
     <p class="hint" data-i18n="merge_hint"></p>
     <p class="hint" id="import-result"></p>
+    <button id="btn-dup" class="wide"></button>
+    <p class="hint" id="dup-hint"></p>
     <hr>
     <p class="hint" id="storage-status"></p>
+  </section>
+
+  <!-- 重複の候補 -->
+  <section id="sheet-dup" class="sheet" hidden>
+    <div class="sheet-head"><strong data-i18n="dup_title"></strong><button class="close" data-close>✕</button></div>
+    <p class="hint" data-i18n="dup_explain"></p>
+    <ul id="dup-items" class="items"></ul>
   </section>
 
   <!-- 使い方（日本語のみ） -->
@@ -207,6 +216,7 @@
         </ul></li>
       <li><b>「読み込む」</b>：このツールの ZIP、他の人の ZIP / CSV、Google My Maps の KMZ を読み込めます。同じ巣が重複することはありません</li>
       <li><b>「複数のファイルをまとめる」</b>：何人分かの ZIP を選ぶと、この端末に取り込んだうえで全部入りの ZIP（nest-records_ALL_…）を 1 つ作ります。次の調査の前はこれ 1 つを読み込めば OK。誰かが消した記録は復活しません</li>
+      <li><b>「重複の候補を確認」</b>：別々の人が同じ巣を登録したかもしれない組（20 m 以内・同じ区分・種が同じか空欄）を表示します。同じ巣なら「まとめる」で確認記録を 1 つの巣に集め、別の巣なら「別の巣」で今後は表示しません</li>
       <li><b>Google ドライブ</b>：ラボの共有フォルダに保存・読み込み・まとめができます。まとめた後の元のファイルは「過去分」フォルダに移せます。初めてのときは「保存先フォルダを選ぶ」から</li>
     </ul>
 

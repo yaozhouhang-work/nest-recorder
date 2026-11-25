@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.8
+/* 巣記録 試作版 v0.9
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（localStorage）に保存。正式データは書き出した CSV。
  */
@@ -531,7 +531,8 @@ function showDriveInfo() {
   $('#drive-section').hidden = !driveEnabled();
   if (!driveEnabled()) return;
   const f = db.settings.driveFolder;
-  $('#drive-folder').textContent = f ? t('drive_folder', { n: f.name }) : t('drive_no_folder');
+  $('#drive-folder').textContent = (f ? t('drive_folder', { n: f.name }) : t('drive_no_folder')) + '\n' +
+    (db.lastMerge ? t('last_merge', { t: fmtTime(db.lastMerge) }) : t('never_merged'));
   $('#drive-save').disabled = $('#drive-load').disabled = !f;
 }
 $('#drive-pick').onclick = async () => {
@@ -572,9 +573,90 @@ async function mergeFiles(files) {
     } catch (e) { console.warn(e); src.forEach((f) => ng.push(f.name)); }
     if (ng.length) msg.push(t('merge_archive_failed', { f: ng.join(', ') }));
   }
+  db.lastMerge = nowIso(); save();
+  const nd = dupCandidates().length;
+  if (nd) msg.push(t('dup_after_merge', { n: nd }));
   openData();
   $('#import-result').textContent = msg.filter(Boolean).join('\n');
 }
+// ---- 重複の候補（同じ巣を別々に登録したかもしれない組） ----
+const DUP_M = 20;
+function distM(a, b) {
+  const R = 6371000, r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const pairKey = (a, b) => [a, b].sort().join('|');
+function dupCandidates() {
+  const not = new Set(db.notDup || []), out = [], ns = db.nests;
+  for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
+    const a = ns[i], b = ns[j];
+    if ((a.category || 'nest') !== (b.category || 'nest')) continue;
+    if (a.species && b.species && a.species !== b.species) continue;
+    if (Math.abs(a.lat - b.lat) > 0.0003 || Math.abs(a.lon - b.lon) > 0.0004) continue;   // 先に粗く絞り込む
+    const d = distM(a, b);
+    if (d <= DUP_M && !not.has(pairKey(a.nest_id, b.nest_id))) out.push({ a, b, d });
+  }
+  return out.sort((x, y) => x.d - y.d);
+}
+/* 残す方：My Maps から来た点（My Maps 側にも同じ ID がある）> 確認記録が多い > 先に登録した */
+function keeperOf(a, b) {
+  const score = (n) => [n.loc_source === 'mymaps' ? 1 : 0, visitsOf(n.nest_id).length, -Date.parse(n.created_at || 0)];
+  const sa = score(a), sb = score(b);
+  for (let k = 0; k < 3; k++) if (sa[k] !== sb[k]) return sa[k] > sb[k] ? [a, b] : [b, a];
+  return [a, b];
+}
+function updateDupButton() {
+  const n = dupCandidates().length;
+  $('#btn-dup').textContent = t('dup_btn', { n });
+  $('#dup-hint').textContent = t('dup_hint', { m: DUP_M });
+  return n;
+}
+function openDup() {
+  closeSheets();
+  const list = dupCandidates();
+  const card = (n, keep) => `<div><b>${keep ? '✔ ' : ''}${esc(n.name || n.nest_id)}</b> ${esc(n.species || t('no_species'))}
+    <small>${esc(n.nest_id)} · ${esc(n.recorder || '—')} · ${t('dup_visits', { n: visitsOf(n.nest_id).length })}</small></div>`;
+  $('#dup-items').innerHTML = list.length ? list.map(({ a, b, d }) => {
+    const [k, o] = keeperOf(a, b);
+    return `<li data-keep="${esc(k.nest_id)}" data-other="${esc(o.nest_id)}">
+      ${card(k, true)}${card(o, false)}<small>${t('dup_dist', { d: Math.round(d) })}</small>
+      <div class="actions"><button type="button" data-act="not">${esc(t('dup_not'))}</button>
+      <button type="button" class="primary" data-act="merge">${esc(t('dup_merge'))}</button></div></li>`;
+  }).join('') : `<li class="hint">${t('dup_none')}</li>`;
+  $('#sheet-dup').hidden = false;
+}
+function mergeNests(keepId, otherId) {
+  const k = findNest(keepId), o = findNest(otherId); if (!k || !o) return;
+  const now = nowIso();
+  for (const f of ['name', 'species', 'season_result', 'nest_type', 'height_m', 'site', 'material', 'mm_icon', 'mm_description', 'photo_urls']) {
+    if ((k[f] == null || k[f] === '') && o[f] != null && o[f] !== '') { logEdit('nests', k.nest_id, f, k[f], o[f]); k[f] = o[f]; }
+  }
+  if (o.note) { const nn = [k.note, o.note].filter(Boolean).join(' / '); logEdit('nests', k.nest_id, 'note', k.note, nn); k.note = nn; }
+  for (const v of db.visits.filter((x) => x.nest_id === o.nest_id)) {
+    logEdit('visits', v.visit_id, 'nest_id', v.nest_id, k.nest_id);
+    v.nest_id = k.nest_id; v.updated_at = now;
+  }
+  k.updated_at = now;
+  db.edits.push({ edited_at: now, recorder: rec(), table: 'nests', record_id: o.nest_id, field: '(deleted)',
+    old_value: JSON.stringify(o), new_value: `merged into ${k.nest_id}` });
+  db.nests = db.nests.filter((x) => x !== o);
+  changed();
+  refreshMarker(o.nest_id); refreshMarker(k.nest_id);
+}
+$('#btn-dup').onclick = openDup;
+$('#dup-items').onclick = (e) => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const li = b.closest('li'), keep = li.dataset.keep, other = li.dataset.other;
+  if (b.dataset.act === 'merge') {
+    const k = findNest(keep), o = findNest(other);
+    if (!confirm(t('dup_confirm', { a: o.name || o.nest_id, b: k.name || k.nest_id }))) return;
+    mergeNests(keep, other);
+  } else {
+    db.notDup = [...new Set([...(db.notDup || []), pairKey(keep, other)])]; save();
+  }
+  openDup();
+};
 $('#btn-merge').onclick = () => $('#file-merge').click();
 $('#file-merge').onchange = async (e) => {
   const files = [...e.target.files]; e.target.value = '';
@@ -716,7 +798,7 @@ $('#file-import').onchange = async (e) => {
 };
 
 // ================= データ画面・催促 =================
-function openData() { closeSheets(); showDataInfo(); showDriveInfo(); drivePreload(); $('#sheet-data').hidden = false; }
+function openData() { closeSheets(); showDataInfo(); showDriveInfo(); updateDupButton(); drivePreload(); $('#sheet-data').hidden = false; }
 $('#btn-data').onclick = openData;
 $('#unexported').onclick = openData;
 async function showDataInfo() {

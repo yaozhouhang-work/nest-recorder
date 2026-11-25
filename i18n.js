@@ -255,6 +255,37 @@ Object.assign(I18N.en, {
   merge_archive_confirm: 'Move the {n} original files into the “過去分” folder inside the Drive folder?',
   merge_archived: 'Moved {n} files to “過去分”.', merge_archive_failed: 'Could not move: {f} (maybe no permission — please move by hand)',
 });
+/* v0.9：重複の候補・最後にまとめた日 */
+Object.assign(I18N.ja, {
+  dup_btn: '重複の候補を確認（{n} 組）', dup_title: '重複の候補',
+  dup_hint: '別々の人が同じ巣を登録したかもしれない組（{m} m 以内・同じ区分・種が同じか空欄）を表示します。',
+  dup_explain: '同じ巣なら「まとめる」：確認記録を 1 つの巣に集め、空欄の項目はもう一方から補い、もう一方は削除します（修正履歴に残り、他の人のファイルから復活しません）。別の巣なら「別の巣」：今後この組は表示しません。',
+  dup_none: '重複の候補はありません。', dup_keep: '残す', dup_merge: '同じ巣：まとめる', dup_not: '別の巣',
+  dup_dist: '距離 約 {d} m', dup_visits: '確認 {n} 回', dup_after_merge: '重複の候補が {n} 組あります。「重複の候補を確認」で確かめてください。',
+  dup_merged: '{a} を {b} にまとめました。',
+  dup_confirm: '「{a}」を「{b}」にまとめます。よろしいですか？',
+  last_merge: '最後にまとめた日：{t}', never_merged: 'まだ「まとめる」をしていません。',
+});
+Object.assign(I18N.zh, {
+  dup_btn: '检查重复候选（{n} 组）', dup_title: '重复候选',
+  dup_hint: '列出可能是不同的人登记了同一个巢的组合（{m} m 以内、同一分类、种名相同或为空）。',
+  dup_explain: '是同一个巢就点“合并”：访查记录集中到一个巢，空着的栏从另一个补上，另一个删除（修改记录里有记载，不会从别人的文件复活）。不是同一个就点“不同的巢”：以后不再显示这一组。',
+  dup_none: '没有重复候选。', dup_keep: '保留', dup_merge: '同一个巢：合并', dup_not: '不同的巢',
+  dup_dist: '相距约 {d} m', dup_visits: '访查 {n} 次', dup_after_merge: '有 {n} 组重复候选，请点“检查重复候选”确认。',
+  dup_merged: '已把 {a} 合并到 {b}。',
+  dup_confirm: '把“{a}”合并到“{b}”，确定吗？',
+  last_merge: '上次合并：{t}', never_merged: '还没有做过“合并”。',
+});
+Object.assign(I18N.en, {
+  dup_btn: 'Check possible duplicates ({n})', dup_title: 'Possible duplicates',
+  dup_hint: 'Pairs that may be the same nest registered by different people (within {m} m, same category, same or blank species).',
+  dup_explain: 'Same nest → “Merge”: visits go to one nest, blank fields are filled from the other, and the other is deleted (logged; it will not come back from other files). Different nests → “Different”: this pair will not be shown again.',
+  dup_none: 'No possible duplicates.', dup_keep: 'Keep', dup_merge: 'Same nest: merge', dup_not: 'Different',
+  dup_dist: '≈ {d} m apart', dup_visits: '{n} visits', dup_after_merge: '{n} possible duplicate pairs — please check them.',
+  dup_merged: 'Merged {a} into {b}.',
+  dup_confirm: 'Merge “{a}” into “{b}”?',
+  last_merge: 'Last merged: {t}', never_merged: 'Not merged yet.',
+});
 /* v0.7：Google ドライブ連携（任意） */
 Object.assign(I18N.ja, {
   drive_title: 'Google ドライブ（ラボの共有フォルダ）', drive_save: '⇪ ドライブに保存', drive_load: '⇩ ドライブから読み込む',
