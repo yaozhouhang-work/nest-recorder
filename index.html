@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.5.1</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.6</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -75,6 +75,7 @@
   <section id="sheet-visit" class="sheet" hidden>
     <div class="sheet-head"><strong id="visit-title"></strong><button class="close" data-close>✕</button></div>
     <form id="visit-form">
+      <label class="row"><span data-i18n="visit_no_label"></span><input id="v-no" type="number" inputmode="numeric" min="1" step="1"></label>
       <label class="row"><span data-i18n="datetime"></span><input id="v-datetime" type="datetime-local" step="60" required></label>
       <div class="row"><span data-i18n="status"></span><div id="v-status" class="chips" data-options="status"></div></div>
       <label class="row"><span data-i18n="eggs"></span><input id="v-eggs" type="number" inputmode="numeric" min="0" step="1"></label>
@@ -174,7 +175,8 @@
       <li>日時（あとから入力するときは変更できます）、状態、卵数、雛数、親鳥、写真番号、備考</li>
       <li>選択ボタンはもう一度押すと解除できます</li>
       <li><b>空欄は「記録していない」</b>という意味で、0 とは区別されます</li>
-      <li>何回目の確認かは自動で数えます</li>
+      <li>何回目の確認かは自動で数えます。以前の記録（My Maps の備考など）がある場合は「回数」を直せます。直した回から後は、その続きで数えます</li>
+      <li>状態の選択肢にないもの（例：捕食された）は「<b>＋ 新しい状態</b>」で追加できます。追加した状態は書き出した CSV にそのまま残り、読み込んだ人の端末にも選択肢として出ます</li>
     </ul>
 
     <h3>5. データの保存と読み込み（💾 データ）</h3>

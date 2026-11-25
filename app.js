@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.2
+/* 巣記録 試作版 v0.6
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（localStorage）に保存。正式データは書き出した CSV。
  */
@@ -15,7 +15,7 @@ const NEST_COLS = ['nest_id', 'name', 'category', 'layer', 'created_at', 'update
 const VISIT_COLS = ['visit_id', 'nest_id', 'visit_no', 'datetime', 'recorder', 'status', 'eggs', 'chicks',
   'adult', 'photo_ids', 'note', 'created_at', 'updated_at'];
 const EDIT_COLS = ['edited_at', 'recorder', 'table', 'record_id', 'field', 'old_value', 'new_value'];
-const NUM_FIELDS = new Set(['lat', 'lon', 'gps_lat', 'gps_lon', 'gps_accuracy_m', 'height_m', 'eggs', 'chicks']);
+const NUM_FIELDS = new Set(['lat', 'lon', 'gps_lat', 'gps_lon', 'gps_accuracy_m', 'height_m', 'eggs', 'chicks', 'visit_no']);
 
 // ================= データ =================
 let db = load();
@@ -95,6 +95,26 @@ function visitsOf(nestId) {
   return db.visits.filter((v) => v.nest_id === nestId).sort((a, b) => Date.parse(a.datetime) - Date.parse(b.datetime));
 }
 function lastVisit(nestId) { const vs = visitsOf(nestId); return vs[vs.length - 1]; }
+/* 何回目か：手で直した回（visit_no が入っている回）はその値、それ以外は直前の回 + 1 */
+function visitNumbers(vs) {
+  const m = new Map(); let prev = 0;
+  for (const v of vs) { prev = v.visit_no != null && v.visit_no !== '' ? Number(v.visit_no) : prev + 1; m.set(v, prev); }
+  return m;
+}
+/* 状態の選択肢：既定 + 自分で追加したもの + 読み込んだ記録に出てくるもの */
+function statusCodes() {
+  const base = OPTIONS.status.map(([c]) => c);
+  const extra = [...(db.settings.customStatus || []), ...db.visits.map((v) => v.status)]
+    .filter((s) => s && !base.includes(s));
+  return [...base, ...new Set(extra)];
+}
+function renderChips(box) {
+  const g = box.dataset.options, v = getChip(box);
+  const codes = g === 'status' ? statusCodes() : OPTIONS[g].map(([c]) => c);
+  box.innerHTML = codes.map((c) => `<button type="button" data-value="${esc(c)}">${esc(optLabel(g, c))}</button>`).join('') +
+    (g === 'status' ? `<button type="button" class="chip-add">${esc(t('new_status'))}</button>` : '');
+  setChip(box, v);
+}
 
 // ================= 多言語 =================
 function t(key, vars = {}) {
@@ -115,12 +135,7 @@ function applyI18n() {
       .map(([c]) => `<option value="${c}">${esc(optLabel(sel.dataset.options, c))}</option>`).join('');
     sel.value = v;
   });
-  document.querySelectorAll('.chips[data-options]').forEach((box) => {
-    const v = getChip(box);
-    box.innerHTML = OPTIONS[box.dataset.options]
-      .map(([c]) => `<button type="button" data-value="${c}">${esc(optLabel(box.dataset.options, c))}</button>`).join('');
-    setChip(box, v);
-  });
+  document.querySelectorAll('.chips[data-options]').forEach(renderChips);
   if (watchId == null) setGpsStatus(t('gps_off'), 'off');
   refreshLayerLabels();
   updateBadge();
@@ -129,6 +144,20 @@ function getChip(box) { return box.querySelector('button.on')?.dataset.value || 
 function setChip(box, v) { box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.value === v)); }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('.chips button'); if (!b) return;
+  if (b.classList.contains('chip-add')) {                  // 「＋ 新しい状態」
+    const box = b.parentElement;
+    const name = (prompt(t('new_status_prompt')) || '').trim();
+    if (!name) return;
+    const hit = OPTIONS.status.find(([c, l]) => c === name || Object.values(l).includes(name));
+    const code = hit ? hit[0] : name;                       // 既定の選択肢と同じ名前なら既定を使う
+    if (!hit && !statusCodes().includes(code)) {
+      db.settings.customStatus = [...(db.settings.customStatus || []), code];
+      save();
+    }
+    renderChips(box);
+    setChip(box, code);
+    return;
+  }
   const on = b.classList.contains('on');
   setChip(b.parentElement, on ? '' : b.dataset.value);       // もう一度押すと解除（空欄）
 });
@@ -295,11 +324,11 @@ function fillNest(n) {
   $('#n-note').value = n.note || '';
   const species = [...new Set(db.nests.map((x) => x.species).filter(Boolean))];
   $('#species-list').innerHTML = species.map((s) => `<option value="${esc(s)}">`).join('');
-  const vs = visitsOf(n.nest_id);
+  const vs = visitsOf(n.nest_id), nums = visitNumbers(vs);
   $('#visit-count').textContent = `（${vs.length}）`;
-  $('#visit-items').innerHTML = vs.length ? vs.slice().reverse().map((v, i) => `
+  $('#visit-items').innerHTML = vs.length ? vs.slice().reverse().map((v) => `
     <li data-visit="${esc(v.visit_id)}">
-      <b>${t('visit_no', { n: vs.length - i })}</b> ${fmtTime(v.datetime)}
+      <b>${t('visit_no', { n: nums.get(v) })}</b> ${fmtTime(v.datetime)}
       <span class="tag" style="background:${STATUS_COLORS[v.status] || '#888'}">${esc(optLabel('status', v.status) || '—')}</span>
       <small>${[v.eggs != null ? `${t('eggs')} ${v.eggs}` : '', v.chicks != null ? `${t('chicks')} ${v.chicks}` : '',
         v.adult ? `${t('adult')}：${optLabel('adult', v.adult)}` : '', v.recorder].filter(Boolean).map(esc).join(' · ')}</small>
@@ -339,12 +368,16 @@ let currentVisit = null;   // null = 新規
 $('#btn-add-visit').onclick = () => { if (requireRecorder()) openVisit(null); };
 $('#visit-items').onclick = (e) => { const li = e.target.closest('li[data-visit]'); if (li) openVisit(li.dataset.visit); };
 
+let autoVisitNo = 1;        // 手で直さなかった場合の回数（直前の回 + 1）
 function openVisit(id) {
   const v = id ? findVisit(id) : null;
   currentVisit = id;
   closeSheets();
-  const vs = visitsOf(currentNest);
-  const no = v ? vs.indexOf(v) + 1 : vs.length + 1;
+  const vs = visitsOf(currentNest), nums = visitNumbers(vs);
+  const i = v ? vs.indexOf(v) : vs.length;
+  autoVisitNo = (i > 0 ? nums.get(vs[i - 1]) : 0) + 1;
+  const no = v ? nums.get(v) : autoVisitNo;
+  $('#v-no').value = no;
   $('#visit-title').textContent = `${currentNest} · ${t('visit_no', { n: no })}`;
   $('#v-datetime').value = (v ? v.datetime : nowIso()).slice(0, 16);
   setChip($('#v-status'), v?.status || '');
@@ -356,13 +389,21 @@ function openVisit(id) {
   $('#v-delete').hidden = !v;
   $('#sheet-visit').hidden = false;
 }
+$('#v-no').oninput = () => {
+  const n = numOrNull($('#v-no').value);
+  if (n != null) $('#visit-title').textContent = `${currentNest} · ${t('visit_no', { n })}`;
+};
 function localInputToIso(val) {
   const d = new Date(val);            // datetime-local は端末のローカル時刻として解釈される
   return Number.isNaN(d.getTime()) ? nowIso() : nowIso(d);
 }
 $('#visit-form').onsubmit = (ev) => {
   ev.preventDefault();
-  const vals = { datetime: localInputToIso($('#v-datetime').value), status: getChip($('#v-status')),
+  const noIn = numOrNull($('#v-no').value), old = currentVisit ? findVisit(currentVisit) : null;
+  const visitNo = old && old.visit_no != null && Number(old.visit_no) === noIn ? old.visit_no   // 変えていなければそのまま
+    : noIn == null || noIn === autoVisitNo ? null : Math.max(1, Math.round(noIn));
+  const vals = { visit_no: visitNo,
+    datetime: localInputToIso($('#v-datetime').value), status: getChip($('#v-status')),
     eggs: numOrNull($('#v-eggs').value), chicks: numOrNull($('#v-chicks').value), adult: getChip($('#v-adult')),
     photo_ids: $('#v-photos').value.trim(), note: $('#v-note').value.trim() };
   const now = nowIso();
@@ -413,7 +454,10 @@ function toCsv(rows, cols) {
 }
 function visitsForExport() {
   const out = [];
-  for (const n of db.nests) visitsOf(n.nest_id).forEach((v, i) => out.push({ ...v, visit_no: i + 1 }));
+  for (const n of db.nests) {
+    const vs = visitsOf(n.nest_id), nums = visitNumbers(vs);
+    vs.forEach((v) => out.push({ ...v, visit_no: nums.get(v) }));
+  }
   // 巣が存在しない確認記録（読み込み途中など）も落とさない
   db.visits.filter((v) => !findNest(v.nest_id)).forEach((v) => out.push({ ...v, visit_no: '' }));
   return out;
@@ -474,8 +518,7 @@ function parseCsv(text) {
 function normalize(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) out[k] = NUM_FIELDS.has(k) ? numOrNull(v) : v;
-  delete out.visit_no;                                  // 回数は書き出し時に毎回計算する
-  return out;
+  return out;                                           // visit_no も残す（手で直した回数を引き継ぐ）
 }
 function mergeInto(list, key, items) {
   let added = 0, updated = 0;

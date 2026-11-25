@@ -185,6 +185,10 @@ Object.assign(I18N.en, {
   import_hint: 'Select CSVs (earlier exports or other people\'s) or a My Maps KMZ (multiple allowed). CSV: newer record wins for the same ID. KMZ never overwrites existing points.',
   import_kmz_done: '{f}: {a} added, {s} existing skipped, {p} polygons not imported (unsupported)',
 });
+/* v0.6：回数の手動修正・状態の追加 */
+Object.assign(I18N.ja, { visit_no_label: '回数', new_status: '＋ 新しい状態', new_status_prompt: '追加する状態の名前（例：捕食された）' });
+Object.assign(I18N.zh, { visit_no_label: '第几次', new_status: '＋ 新状态', new_status_prompt: '新状态的名称（例：被捕食）' });
+Object.assign(I18N.en, { visit_no_label: 'Visit no.', new_status: '+ New status', new_status_prompt: 'Name of the new status (e.g. Predated)' });
 OPTIONS.category = [
   ['nest', { ja: '巣データ', zh: '巢数据', en: 'Nest data' }],
   ['supplement', { ja: '補足データ', zh: '补充数据', en: 'Supplementary' }],

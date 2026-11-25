@@ -91,6 +91,7 @@ button.wide { width: 100%; }
 .chips { flex: 1; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { min-height: 36px; padding: 6px 10px; font-size: 14px; }
 .chips button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chips button.chip-add { border-style: dashed; color: var(--muted, #666); background: transparent; }
 h3.sub { font-size: 15px; margin: 18px 0 8px; }
 .items { list-style: none; margin: 8px 0 0; padding: 0; }
 .items li { padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
