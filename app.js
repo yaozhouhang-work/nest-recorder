@@ -877,8 +877,14 @@ function openSettings() {
   $('#sheet-settings').hidden = false;
 }
 // ---- この端末のデータを全部消す（1 回だけ取り消せる） ----
-const UNDO_KEY = 'nest-recorder-undo-clear';
-function readUndo() { try { return JSON.parse(localStorage.getItem(UNDO_KEY) || 'null'); } catch (e) { return null; } }
+const UNDO_KEY = 'nest-recorder-undo-clear', UNDO_META_KEY = 'nest-recorder-undo-clear-at';
+function readUndo() {
+  const raw = localStorage.getItem(UNDO_KEY); if (!raw) return null;
+  const at = localStorage.getItem(UNDO_META_KEY);
+  if (at) return { raw, cleared_at: at };
+  try { const o = JSON.parse(raw); return o && o.data ? { raw: JSON.stringify(o.data), cleared_at: o.cleared_at } : null; }   // v0.8 の形式
+  catch (e) { return null; }
+}
 function showUndoClear() {
   const u = readUndo(), b = $('#s-undo-clear');
   b.hidden = !u;
@@ -889,20 +895,40 @@ $('#s-clear').onclick = () => {
   if (db.unexported) msg += '\n' + t('clear_unexported', { u: db.unexported });
   if (!confirm(msg)) return;
   if ((prompt(t('clear_confirm2')) || '').trim() !== t('clear_word')) return;
-  const { settings, ...data } = db;
-  try { localStorage.setItem(UNDO_KEY, JSON.stringify({ cleared_at: nowIso(), data })); }
-  catch (e) { alert(t('save_failed', { m: e.message })); return; }      // 取り消し用の控えが残せないなら消さない
+  // 端末の保存容量（約 5 MB）に余裕がないので、データを 2 重に持たない：
+  // 1 世代前のバックアップを消し、今のデータをそのまま取り消し用の控えに移す
+  const cur = localStorage.getItem(STORE_KEY) || JSON.stringify(db);
+  const backup = localStorage.getItem(BACKUP_KEY);
+  try {
+    localStorage.removeItem(UNDO_KEY); localStorage.removeItem(UNDO_META_KEY);
+    localStorage.removeItem(BACKUP_KEY);
+    localStorage.setItem(UNDO_KEY, cur);
+    localStorage.setItem(UNDO_META_KEY, nowIso());
+  } catch (e) {
+    localStorage.removeItem(UNDO_KEY); localStorage.removeItem(UNDO_META_KEY);
+    try { if (backup) localStorage.setItem(BACKUP_KEY, backup); } catch (e2) { /* ignore */ }
+    alert(t('clear_failed', { m: e.message })); return;                   // 控えが残せないなら消さない
+  }
   const ids = db.nests.map((n) => n.nest_id);
   db.nests = []; db.visits = []; db.edits = []; db.unexported = 0;
-  delete db.lastExport; delete db.mmLastExport;
-  save(); ids.forEach(refreshMarker); updateBadge(); fitAll();
+  delete db.lastExport; delete db.mmLastExport; delete db.lastMerge; delete db.notDup;
+  localStorage.setItem(STORE_KEY, JSON.stringify(db));                     // save() はバックアップを作るので使わない
+  ids.forEach(refreshMarker); updateBadge(); fitAll();
   showUndoClear(); alert(t('clear_done'));
 };
 $('#s-undo-clear').onclick = () => {
   const u = readUndo(); if (!u) return;
-  Object.assign(db, u.data);
-  localStorage.removeItem(UNDO_KEY);
-  save(); db.nests.forEach((n) => refreshMarker(n.nest_id)); updateBadge(); fitAll();
+  const keep = db.settings;
+  try {
+    localStorage.removeItem(UNDO_KEY); localStorage.removeItem(UNDO_META_KEY);
+    localStorage.setItem(STORE_KEY, u.raw);
+  } catch (e) {
+    try { localStorage.setItem(UNDO_KEY, u.raw); localStorage.setItem(UNDO_META_KEY, u.cleared_at); } catch (e2) { /* ignore */ }
+    alert(t('clear_failed', { m: e.message })); return;
+  }
+  db = load(); db.settings = keep;                                         // 設定は今のものを使う
+  localStorage.setItem(STORE_KEY, JSON.stringify(db));
+  db.nests.forEach((n) => refreshMarker(n.nest_id)); updateBadge(); fitAll();
   showUndoClear(); alert(t('undo_done'));
 };
 $('#btn-settings').onclick = openSettings;

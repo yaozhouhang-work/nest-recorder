@@ -207,6 +207,7 @@ Object.assign(I18N.ja, {
   clear_unexported: '書き出していない変更が {u} 件あります。消す前に書き出すことをおすすめします。',
   clear_confirm2: '本当に消す場合は「削除」と入力してください。', clear_word: '削除', clear_done: '消しました。設定画面の「元に戻す」で、1 回だけ戻せます。',
   undo_clear: '元に戻す（{t} に消したデータ）', undo_done: '元に戻しました。',
+  clear_failed: '消せませんでした。データはそのまま残っています（{m}）',
 });
 Object.assign(I18N.zh, {
   clear_title: '清除本机数据', clear_all: '清除本机的全部数据',
@@ -215,6 +216,7 @@ Object.assign(I18N.zh, {
   clear_unexported: '还有 {u} 处修改没有导出，建议先导出再清除。',
   clear_confirm2: '确定要清除，请输入“删除”。', clear_word: '删除', clear_done: '已清除。可以在设置里点“撤销”恢复一次。',
   undo_clear: '撤销（恢复 {t} 清除的数据）', undo_done: '已恢复。',
+  clear_failed: '没能清除，数据都还在（{m}）',
 });
 Object.assign(I18N.en, {
   clear_title: 'Clear data on this device', clear_all: 'Clear all data on this device',
@@ -223,6 +225,7 @@ Object.assign(I18N.en, {
   clear_unexported: '{u} changes have not been exported. Export first is recommended.',
   clear_confirm2: 'Type "DELETE" to confirm.', clear_word: 'DELETE', clear_done: 'Cleared. Use “Undo” in Settings to restore once.',
   undo_clear: 'Undo (restore data cleared at {t})', undo_done: 'Restored.',
+  clear_failed: 'Could not clear — your data is unchanged ({m})',
 });
 /* v0.8：ファイルをまとめる */
 Object.assign(I18N.ja, { import_removed: '削除済みのため外したもの：巣 {n} 件、確認記録 {v} 件（誰かが消した記録）' });
