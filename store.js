@@ -120,3 +120,9 @@ async function storeUsage() {
   try { const e = await navigator.storage?.estimate?.(); return e ? { used: e.usage, quota: e.quota } : null; }
   catch (e) { return null; }
 }
+
+// ---- 写真の本体（v0.11〜）：キー 'photo:名前' ----
+function needIdb() { if (!idb) throw new Error('この端末では写真を保存できません（IndexedDB が使えません）'); }
+async function storePutPhoto(name, rec) { needIdb(); await idbTx([['put', 'photo:' + name, rec]]); }
+async function storeGetPhoto(name) { if (!idb) return null; return (await idbTx([['get', 'photo:' + name]]))['photo:' + name] || null; }
+async function storeDelPhoto(name) { if (!idb) return; await idbTx([['del', 'photo:' + name]]); }

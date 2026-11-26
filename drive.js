@@ -84,19 +84,18 @@ async function driveFetch(url, opt = {}) {
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
   return res;
 }
-/* 保存先フォルダを選ぶ */
-async function drivePickFolder() {
+/* フォルダを選ぶ。key = 'driveFolder'（自分の保存先）/ 'masterFolder'（ラボデータ A の置き場） */
+async function drivePickFolder(key = 'driveFolder') {
   const token = await driveAuth();
   const [f] = await drivePicker(token, folderViews(), false);
   if (!f) return null;
-  db.settings.driveFolder = { id: f.id, name: f.name };
+  db.settings[key] = { id: f.id, name: f.name };
   save();
-  return db.settings.driveFolder;
+  return db.settings[key];
 }
-/* フォルダに新しいファイルとして保存（上書きはしない） */
-async function driveUpload(blob, name) {
-  const folder = db.settings.driveFolder;
-  const meta = { name, parents: [folder.id], mimeType: 'application/zip' };
+/* フォルダに新しいファイルとして保存（上書きはしない）。既定は自分の保存先フォルダに ZIP */
+async function driveUpload(blob, name, opt = {}) {
+  const meta = { name, parents: [opt.folderId || db.settings.driveFolder.id], mimeType: opt.mimeType || 'application/zip' };
   const form = new FormData();
   form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
   form.append('file', blob, name);
@@ -138,4 +137,17 @@ async function driveMove(fileId, toFolder) {
   const from = (meta.parents || []).join(',');
   await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?addParents=${toFolder}` +
     `${from ? '&removeParents=' + from : ''}&supportsAllDrives=true&fields=id`, { method: 'PATCH' });
+}
+/* フォルダの中の ZIP を新しい順に（drive.file なので、このツールから見えるものだけ） */
+async function driveListZips(folderId) {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false and (mimeType='application/zip' or mimeType='application/x-zip-compressed' or name contains '.zip')`);
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=50` +
+    '&fields=files(id,name,modifiedTime,size)&supportsAllDrives=true&includeItemsFromAllDrives=true');
+  return (await res.json()).files || [];
+}
+async function driveDownload(id, name) {
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true`);
+  const file = new File([await res.blob()], name);
+  file.driveId = id;
+  return file;
 }

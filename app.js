@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.10
+/* 巣記録 試作版 v0.11
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
@@ -11,7 +11,7 @@ const NEST_COLS = ['nest_id', 'name', 'category', 'layer', 'created_at', 'update
   'gps_lat', 'gps_lon', 'gps_accuracy_m', 'species', 'season_result', 'nest_type', 'height_m', 'site', 'material', 'note',
   'mm_icon', 'mm_description', 'photo_urls', 'mm_synced_at'];
 const VISIT_COLS = ['visit_id', 'nest_id', 'visit_no', 'datetime', 'recorder', 'status', 'eggs', 'chicks',
-  'adult', 'photo_ids', 'note', 'created_at', 'updated_at'];
+  'adult', 'photo_ids', 'note', 'created_at', 'updated_at', 'photo_files'];
 const EDIT_COLS = ['edited_at', 'recorder', 'table', 'record_id', 'field', 'old_value', 'new_value'];
 const NUM_FIELDS = new Set(['lat', 'lon', 'gps_lat', 'gps_lon', 'gps_accuracy_m', 'height_m', 'eggs', 'chicks', 'visit_no']);
 
@@ -26,6 +26,7 @@ function normalizeDb(d) {
     site: '', material: '', name: '', category: 'nest', layer: '', season_result: '', mm_icon: '',
     mm_description: '', photo_urls: '', ...n }));
   d.visits = d.visits || [];
+  d.photos = d.photos || [];                     // 写真の一覧（本体は IndexedDB、photos.js）
   d.edits = (d.edits || []).map((e) => ({ recorder: '', ...e }));
   d.settings = { lang: guessLang(), recorder: '', ...(d.settings || {}) };
   d.unexported = d.unexported ?? (d.nests.length ? d.edits.length : 0);
@@ -161,7 +162,17 @@ const layers = {
   'OpenStreetMap': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
 };
 layers['地理院 標準'].addTo(map);
+let baseName = '地理院 標準';
+map.on('baselayerchange', (e) => { baseName = e.name; });
 const layerCtl = L.control.layers(layers, null, { position: 'topright' }).addTo(map);
+const offLayer = L.layerGroup().addTo(map);          // オフライン用に保存した範囲（点線の枠）
+function drawOffAreas() {
+  offLayer.clearLayers();
+  for (const a of db.offline?.areas || []) {
+    const [w, so, e, n] = a.b.split(',').map(Number);
+    L.rectangle([[so, w], [n, e]], { color: '#555', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(offLayer);
+  }
+}
 L.control.scale({ imperial: false }).addTo(map);
 
 // 巣データ / 補足データ はレイヤーとして別々に表示・非表示できる
@@ -171,6 +182,8 @@ function refreshLayerLabels() {
     layerCtl.removeLayer(catLayers[cat]);
     layerCtl.addOverlay(catLayers[cat], optLabel('category', cat));
   }
+  layerCtl.removeLayer(offLayer);
+  layerCtl.addOverlay(offLayer, t('off_layer'));
 }
 
 const markers = new Map();
@@ -180,8 +193,8 @@ function nestIcon(n) {
   const mm = (typeof MM_ICONS !== 'undefined' && n.mm_icon) ? MM_ICONS[n.mm_icon.split('-')[0]] : null;
   let color = lv ? STATUS_COLORS[lv.status] || STATUS_COLORS.unknown
     : RESULT_COLORS[n.season_result] || (n.mm_icon ? '#' + n.mm_icon.split('-')[1] : '#2f5d50');
-  if (n.mm_icon?.startsWith('1502')) color = '#e53935';                 // トビ関連（赤い星）
-  const label = n.loc_source === 'mymaps' ? (mm?.label ?? '') : n.nest_id.split('-').pop();
+  if (n.mm_icon?.startsWith('1502') && n.loc_source === 'mymaps') color = '#e53935';   // My Maps のトビ関連（赤い星）
+  const label = mm?.label ? mm.label : n.loc_source === 'mymaps' ? '' : n.nest_id.split('-').pop();
   const small = n.category === 'supplement' ? ' small' : '';
   return L.divIcon({ className: '', iconSize: small ? [18, 18] : [28, 28], iconAnchor: small ? [9, 9] : [14, 14],
     html: `<div class="nest-icon${small} ${n.loc_source === 'manual' ? 'manual' : ''}" style="background:${color}">${esc(label)}</div>` });
@@ -258,13 +271,24 @@ function createNest(lat, lon, src, f) {
   addMarker(nest);
   openNest(nest.nest_id);
 }
+/* 20 m 以内に巣があれば「この巣ですか？」と聞く（同じ巣を 2 つ作らないため） */
+function createNestChecked(lat, lon, src, f) {
+  const near = db.nests.map((n) => [n, distM({ lat, lon }, n)]).filter(([, d]) => d <= DUP_M)
+    .sort((a, b) => a[1] - b[1]).slice(0, 3);
+  if (!near.length) { createNest(lat, lon, src, f); return; }
+  modal(t('near_title'), t('near_body', { m: DUP_M }), [
+    ...near.map(([n, d]) => [t('near_open', { n: n.name || n.nest_id, d: Math.round(d) }), 'primary', () => openNest(n.nest_id)]),
+    [t('near_new'), '', () => createNest(lat, lon, src, f)],
+    [t('cancel'), '', null],
+  ]);
+}
 $('#btn-add-gps').onclick = () => {
   if (!requireRecorder()) return;
   startGps();
   if (!fix || Date.now() - fix.t > 30000) { alert(t('wait_gps')); return; }
   const a = Math.round(fix.acc);
   if (a > 30 && !confirm(t('confirm_poor_gps', { a }))) return;
-  createNest(fix.lat, fix.lon, 'gps', fix);
+  createNestChecked(fix.lat, fix.lon, 'gps', fix);
 };
 let picking = false;
 $('#btn-add-pick').onclick = () => {
@@ -275,7 +299,7 @@ $('#pick-cancel').onclick = () => { picking = false; $('#pick-hint').hidden = tr
 map.on('click', (e) => {
   if (!picking) return;
   picking = false; $('#pick-hint').hidden = true;
-  createNest(e.latlng.lat, e.latlng.lng, 'manual', null);   // 地図で指定した巣は GPS 原値なし
+  createNestChecked(e.latlng.lat, e.latlng.lng, 'manual', null);   // 地図で指定した巣は GPS 原値なし
 });
 
 // ================= 巣の詳細 =================
@@ -297,6 +321,7 @@ function fillNest(n) {
   $('#n-name').value = n.name || '';
   $('#n-category').value = n.category || 'nest';
   $('#n-result').value = n.season_result || '';
+  fillIconPick(n.mm_icon);
   // My Maps から取り込んだ説明文と写真（原文のまま・読み取り専用）
   $('#n-legacy').hidden = !n.mm_description && !n.photo_urls;
   $('#n-legacy-text').textContent = n.mm_description || '';
@@ -328,6 +353,36 @@ function fillNest(n) {
   $('#n-history ul').innerHTML = hist.map((e) =>
     `<li>${fmtTime(e.edited_at)} ${esc(e.record_id === n.nest_id ? '' : e.record_id + ' ')}${esc(e.field)}：${esc(e.old_value)} → ${esc(e.new_value)}</li>`).join('');
 }
+/* アイコン（My Maps と同じ印と色）。値は mm_icon「コード-色」、空欄 = 自動 */
+const ICON_CODES = ['1899', '1769', '1898', '1608', '1502', '1594'];
+const ICON_COLORS = ['0288D1', 'A52714', 'E65100', 'F9A825', '097138', '7B1FA2', '000000', '757575', '795548'];
+function fillIconPick(v) {
+  const [code, color] = (v || '').split('-');
+  // 読み込んだ色はそのままの書き方で残す（大文字・小文字の違いで「変更」にしない）
+  const colors = ICON_COLORS.map((c) => (color && c === color.toUpperCase() ? color : c));
+  if (color && !colors.includes(color)) colors.push(color);
+  $('#n-icon').innerHTML = `<option value="">${esc(t('icon_auto'))}</option>` +
+    ICON_CODES.map((c) => `<option value="${c}">${esc(t('icon_' + c))}</option>`).join('');
+  $('#n-icon-color').innerHTML = colors.map((c) => `<option value="${c}">${esc(t('col_' + c.toUpperCase()) === 'col_' + c.toUpperCase() ? '#' + c : t('col_' + c.toUpperCase()))}</option>`).join('');
+  $('#n-icon').value = ICON_CODES.includes(code) || !code ? code || '' : '';
+  if (code && !ICON_CODES.includes(code)) {        // 知らないコード（My Maps の他の印）はそのまま残す
+    $('#n-icon').insertAdjacentHTML('beforeend', `<option value="${esc(code)}">${esc(code)}</option>`);
+    $('#n-icon').value = code;
+  }
+  $('#n-icon-color').value = color || ICON_COLORS[0];
+  showIconPreview();
+}
+function iconValue() { const c = $('#n-icon').value; return c ? `${c}-${$('#n-icon-color').value}` : ''; }
+function showIconPreview() {
+  const c = $('#n-icon').value, el = $('#n-icon-preview');
+  $('#n-icon-color').disabled = !c;
+  el.hidden = !c;
+  el.style.background = '#' + $('#n-icon-color').value;
+  el.textContent = (typeof MM_ICONS !== 'undefined' && MM_ICONS[c]?.label) || '';
+}
+$('#n-icon').onchange = showIconPreview;
+$('#n-icon-color').onchange = showIconPreview;
+
 /* 巣の名前の自動付番：「年(2桁)_種名N」。同じ年・同じ種の既存の名前（My Maps から来たものを含む）の最大番号 + 1 */
 function autoNestName(species, createdAt, selfId) {
   if (!species) return '';
@@ -352,7 +407,7 @@ $('#nest-form').onsubmit = (ev) => {
   const n = findNest(currentNest); if (!n) return;
   const species = $('#n-species').value.trim();
   const vals = { name: $('#n-name').value.trim() || autoNestName(species, n.created_at, n.nest_id),
-    category: $('#n-category').value || 'nest',
+    category: $('#n-category').value || 'nest', mm_icon: iconValue(),
     season_result: $('#n-result').value,
     species, nest_type: $('#n-type').value,
     height_m: numOrNull($('#n-height').value), site: $('#n-site').value.trim(),
@@ -397,9 +452,57 @@ function openVisit(id) {
   $('#v-chicks').value = v?.chicks ?? '';
   setChip($('#v-adult'), v?.adult || '');
   $('#v-photos').value = v?.photo_ids || '';
+  discardNewPhotos();
+  visitPhotoNames = (v?.photo_files || '').split(/\s+/).filter(Boolean);
+  renderVisitPhotos();
   $('#v-note').value = v?.note || '';
   $('#v-delete').hidden = !v;
   $('#sheet-visit').hidden = false;
+}
+// 写真：この画面で選んだ名前の一覧。保存せずに閉じたら、新しく取り込んだ分は端末から消す
+let visitPhotoNames = [], visitPhotoNew = [];
+function discardNewPhotos() { visitPhotoNew.forEach((n) => storeDelPhoto(n).catch(() => {})); visitPhotoNew = []; }
+async function renderVisitPhotos() {
+  const items = await Promise.all(visitPhotoNames.map(async (n) => [n, await photoThumbUrl(n).catch(() => '')]));
+  $('#v-photo-list').innerHTML = items.map(([n, u]) => `<button type="button" class="photo-thumb" data-name="${esc(n)}">` +
+    `${u ? `<img src="${esc(u)}" alt="">` : '<span class="cloud">☁</span>'}<small>${esc(n)}${photoMeta(n)?.drive_id ? ' ✓' : ''}</small></button>`).join('');
+  $('#v-photo-hint').textContent = t('photo_hint', { q: t('pq_' + photoQuality()) });
+}
+$('#v-photo-add').onclick = () => $('#file-photo').click();
+$('#file-photo').onchange = async (e) => {
+  const files = [...e.target.files]; e.target.value = '';
+  const nest = findNest(currentNest); if (!nest || !files.length) return;
+  const dt = localInputToIso($('#v-datetime').value);
+  for (const [i, f] of files.entries()) {
+    $('#v-photo-hint').textContent = t('photo_adding', { i: i + 1, n: files.length });
+    try {
+      const name = await addPhotoFile(f, nest, dt, visitPhotoNames);
+      visitPhotoNames.push(name); visitPhotoNew.push(name);
+    } catch (err) { console.warn(err); alert(t('photo_failed', { f: f.name, m: err.message })); }
+  }
+  renderVisitPhotos();
+};
+$('#v-photo-list').onclick = (e) => {
+  const b = e.target.closest('.photo-thumb'); if (!b) return;
+  const name = b.dataset.name;
+  if (!confirm(t('photo_remove_confirm', { f: name }))) return;
+  visitPhotoNames = visitPhotoNames.filter((n) => n !== name);
+  if (visitPhotoNew.includes(name)) { visitPhotoNew = visitPhotoNew.filter((n) => n !== name); storeDelPhoto(name).catch(() => {}); }
+  renderVisitPhotos();
+};
+/* 保存したとき：新しい写真を一覧に登録し、外した写真は端末から消す（ドライブに送った分はドライブに残る） */
+function commitVisitPhotos(visitId, before) {
+  const now = nowIso();
+  for (const n of visitPhotoNames) {
+    if (visitPhotoNew.includes(n) && !photoMeta(n)) db.photos.push({ name: n, nest_id: currentNest, visit_id: visitId, added_at: now });
+  }
+  for (const n of before) {
+    if (visitPhotoNames.includes(n)) continue;
+    db.photos = db.photos.filter((p) => p.name !== n);
+    storeDelPhoto(n).catch(() => {});
+    photoUrls.delete(n);
+  }
+  visitPhotoNew = [];
 }
 $('#v-no').oninput = () => {
   const n = numOrNull($('#v-no').value);
@@ -417,17 +520,20 @@ $('#visit-form').onsubmit = (ev) => {
   const vals = { visit_no: visitNo,
     datetime: localInputToIso($('#v-datetime').value), status: getChip($('#v-status')),
     eggs: numOrNull($('#v-eggs').value), chicks: numOrNull($('#v-chicks').value), adult: getChip($('#v-adult')),
-    photo_ids: $('#v-photos').value.trim(), note: $('#v-note').value.trim() };
+    photo_ids: $('#v-photos').value.trim(), photo_files: visitPhotoNames.join(' '), note: $('#v-note').value.trim() };
   const now = nowIso();
   if (currentVisit) {
     const v = findVisit(currentVisit);
     let c = 0;
-    for (const [k, val] of Object.entries(vals)) c += logEdit('visits', v.visit_id, k, v[k], val);
-    if (c) { Object.assign(v, vals, { updated_at: now }); changed(); }
+    const before = (v.photo_files || '').split(/\s+/).filter(Boolean);
+    for (const [k, val] of Object.entries(vals)) c += logEdit('visits', v.visit_id, k, v[k] ?? '', val);
+    if (c) { Object.assign(v, vals, { updated_at: now }); commitVisitPhotos(v.visit_id, before); changed(); }
+    else visitPhotoNew = [];
   } else {
     const v = { visit_id: newVisitId(), nest_id: currentNest, recorder: rec(), ...vals, created_at: now, updated_at: now };
     db.visits.push(v);
     logEdit('visits', v.visit_id, '(created)', '', currentNest);
+    commitVisitPhotos(v.visit_id, []);
     changed();
   }
   refreshMarker(currentNest);
@@ -524,7 +630,78 @@ function showDriveInfo() {
   $('#drive-folder').textContent = (f ? t('drive_folder', { n: f.name }) : t('drive_no_folder')) + '\n' +
     (db.lastMerge ? t('last_merge', { t: fmtTime(db.lastMerge) }) : t('never_merged'));
   $('#drive-save').disabled = $('#drive-load').disabled = !f;
+  const np = pendingPhotos().length;
+  $('#drive-photos').textContent = t('photo_upload', { n: np });
+  $('#drive-photos').disabled = !f || !np;
+  showAInfo();
 }
+async function sendPhotos() {
+  if (!pendingPhotos().length) return '';
+  const r = await uploadPhotos((i, n) => driveMsg(t('photo_uploading', { i, n })));
+  return t('photo_uploaded', { ok: r.ok, ng: r.ng });
+}
+$('#drive-photos').onclick = async () => {
+  if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
+  try { await driveAuth(); driveMsg(await sendPhotos()); showDriveInfo(); } catch (e) { driveErr(e); }
+};
+
+// ---- ラボデータ（A）：マスターのフォルダから最新版を読み込む ----
+let aCheckedNow = false, bannerClosed = false;
+function showAInfo() {
+  const a = db.aVersion, f = db.settings.masterFolder;
+  $('#a-info').textContent = (a ? t('a_have', { n: a.name, t: fmtTime(a.modifiedTime) }) : t('a_none')) + '\n' +
+    (f ? t('a_folder', { n: f.name }) : t('a_no_folder'));
+  $('#a-pull').disabled = !f;
+}
+async function pullMaster(say) {
+  const f = db.settings.masterFolder;
+  if (!f) { openData(); return; }
+  if (!navigator.onLine) { say(t('drive_offline')); return; }
+  try {
+    await driveAuth();                         // クリック直後にログイン（ポップアップのブロック対策）
+    say(t('a_checking'));
+    const list = await driveListZips(f.id);
+    const pick = list.find((x) => /MASTER/i.test(x.name)) || list[0];
+    if (!pick) { say(t('a_empty', { n: f.name })); return; }
+    const cur = db.aVersion;
+    aCheckedNow = true;
+    if (cur && cur.id === pick.id && cur.modifiedTime === pick.modifiedTime) {
+      say(t('a_latest', { n: pick.name })); setTimeout(updateBanner, 4000); showAInfo(); return;
+    }
+    say(t('a_loading', { n: pick.name }));
+    await importFiles([await driveDownload(pick.id, pick.name)]);
+    db.aVersion = { id: pick.id, name: pick.name, modifiedTime: pick.modifiedTime, loaded_at: nowIso() };
+    save();
+    say(t('a_loaded', { n: pick.name }) + '\n' + $('#import-result').textContent);
+    setTimeout(updateBanner, 6000); showAInfo();      // 結果を少し見せてから上部のお知らせを閉じる
+  } catch (e) {
+    console.warn(e);
+    say(String(e.message).startsWith('not_loaded') || !navigator.onLine ? t('drive_offline') : t('drive_failed', { m: e.message }));
+  }
+}
+function canPull() { return driveEnabled() && !!db.settings.masterFolder && navigator.onLine; }
+function updateBanner() {
+  const b = $('#a-banner');
+  let text = '', go = '';
+  if (!db.aVersion) { text = t('a_banner_none'); go = canPull() ? t('a_banner_load') : t('a_banner_how'); }
+  else if (canPull() && !aCheckedNow) { text = t('a_banner_check', { t: fmtTime(db.aVersion.modifiedTime).split(' ')[0] }); go = t('a_banner_check_btn'); }
+  b.hidden = bannerClosed || !text;
+  $('#a-banner-text').textContent = text;
+  $('#a-banner-go').textContent = go;
+  $('#a-banner-go').hidden = !go;
+}
+$('#a-banner-go').onclick = () => {
+  if (!canPull()) { openData(); $('#a-info').scrollIntoView({ block: 'center' }); return; }
+  pullMaster((m) => { $('#a-banner-text').textContent = m; $('#a-banner-go').hidden = true; $('#a-banner').hidden = false; });
+};
+$('#a-banner-x').onclick = () => { bannerClosed = true; updateBanner(); };
+$('#a-pick').onclick = async () => {
+  try { const f = await drivePickFolder('masterFolder'); if (f) $('#a-result').textContent = ''; showAInfo(); updateBanner(); }
+  catch (e) { console.warn(e); $('#a-result').textContent = t('drive_failed', { m: e.message }); }
+};
+$('#a-pull').onclick = () => pullMaster((m) => { $('#a-result').textContent = m; });
+addEventListener('online', () => { updateBanner(); if (canPull()) drivePreload(); });
+addEventListener('offline', updateBanner);
 $('#drive-pick').onclick = async () => {
   try { const f = await drivePickFolder(); if (f) driveMsg(''); showDriveInfo(); } catch (e) { driveErr(e); }
 };
@@ -537,6 +714,9 @@ $('#drive-save').onclick = async () => {
     await driveUpload(blob, name);
     markExported();
     driveMsg(t('drive_saved', { f: name }));
+    const pm = await sendPhotos();                 // まだ送っていない写真も一緒に
+    if (pm) driveMsg(t('drive_saved', { f: name }) + '\n' + pm);
+    showDriveInfo();
   } catch (e) { driveErr(e); }
 };
 /* 複数のファイルをまとめる：端末のデータに取り込み → 全部入りの ZIP を書き出し（端末 + ドライブ）→ ドライブの元ファイルは「過去分」へ */
@@ -788,7 +968,35 @@ $('#file-import').onchange = async (e) => {
 };
 
 // ================= データ画面・催促 =================
-function openData() { closeSheets(); showDataInfo(); showDriveInfo(); updateDupButton(); drivePreload(); $('#sheet-data').hidden = false; }
+function openData() { closeSheets(); showDataInfo(); showDriveInfo(); updateDupButton(); showOffInfo(); drivePreload(); $('#sheet-data').hidden = false; }
+function showOffInfo(extra) {
+  const o = db.offline;
+  $('#off-info').textContent = (o?.areas?.length
+    ? t('off_have', { a: o.areas.length, n: o.tiles, m: (o.bytes / 1048576).toFixed(0) }) : t('off_none')) + (extra ? '\n' + extra : '');
+}
+$('#off-dl').onclick = async () => {
+  if (!navigator.onLine) { showOffInfo(t('drive_offline')); return; }
+  const name = baseName === 'OpenStreetMap' ? '地理院 標準' : baseName;   // OSM は一括保存が禁止されているので地理院に
+  const plan = offPlan(map.getBounds(), layers[name]._url);
+  if (plan.urls.length > OFF_MAX_TILES) { alert(t('off_too_many', { n: plan.urls.length, max: OFF_MAX_TILES })); return; }
+  if (!confirm(t('off_confirm', { n: plan.urls.length, z: plan.zMax, l: name }))) return;
+  $('#off-dl').disabled = true; $('#off-stop').hidden = false;
+  const r = await offDownload(plan.urls, (d, n, b) => showOffInfo(t('off_progress', { d, n, m: (b / 1048576).toFixed(1) })));
+  $('#off-dl').disabled = false; $('#off-stop').hidden = true;
+  const b = map.getBounds();
+  db.offline = db.offline || { areas: [], tiles: 0, bytes: 0 };
+  const bb = b.toBBoxString();
+  if (r.done - r.failed > 0 && !db.offline.areas.some((a) => a.b === bb && a.layer === name))
+    db.offline.areas.push({ b: bb, layer: name, zMax: plan.zMax, at: nowIso() });
+  db.offline.tiles += r.fresh; db.offline.bytes += r.bytes;     // 保存済みだったタイルは数えない
+  save(); drawOffAreas();
+  showOffInfo(t(r.aborted ? 'off_stopped' : 'off_done', { d: r.done - r.failed, f: r.failed }));
+};
+$('#off-stop').onclick = () => { offAbort = true; };
+$('#off-clear').onclick = async () => {
+  if (!confirm(t('off_clear_confirm'))) return;
+  await offClear(); db.offline = null; save(); drawOffAreas(); showOffInfo();
+};
 $('#btn-data').onclick = openData;
 $('#unexported').onclick = openData;
 async function showDataInfo() {
@@ -865,6 +1073,7 @@ function openSettings() {
   $('#s-lang').value = db.settings.lang;
   $('#s-recorder').value = db.settings.recorder;
   $('#s-mymaps').checked = !!db.settings.mymaps;
+  $('#s-photo-q').value = photoQuality();
   showUndoClear();
   $('#sheet-settings').hidden = false;
 }
@@ -879,13 +1088,13 @@ $('#s-clear').onclick = async () => {
   if (db.unexported) msg += '\n' + t('clear_unexported', { u: db.unexported });
   if (!confirm(msg)) return;
   if ((prompt(t('clear_confirm2')) || '').trim() !== t('clear_word')) return;
-  const empty = { ...db, nests: [], visits: [], edits: [], unexported: 0 };
-  ['lastExport', 'mmLastExport', 'lastMerge', 'notDup'].forEach((k) => delete empty[k]);
+  const empty = { ...db, nests: [], visits: [], edits: [], photos: [], unexported: 0 };
+  ['lastExport', 'mmLastExport', 'lastMerge', 'notDup', 'aVersion'].forEach((k) => delete empty[k]);
   try { storeInfo.undoAt = await storeClear(db, empty); }
   catch (e) { alert(t('clear_failed', { m: e.message })); return; }   // 控えが残せないなら消さない
   const ids = db.nests.map((n) => n.nest_id);
   db = empty;
-  ids.forEach(refreshMarker); updateBadge(); fitAll();
+  ids.forEach(refreshMarker); updateBadge(); fitAll(); updateBanner();
   showUndoClear(); alert(t('clear_done'));
 };
 $('#s-undo-clear').onclick = async () => {
@@ -898,7 +1107,7 @@ $('#s-undo-clear').onclick = async () => {
     await storeDropUndo();
     storeInfo.undoAt = null;
     ids.forEach(refreshMarker);
-    db.nests.forEach((n) => refreshMarker(n.nest_id)); updateBadge(); fitAll();
+    db.nests.forEach((n) => refreshMarker(n.nest_id)); updateBadge(); fitAll(); updateBanner();
     showUndoClear(); alert(t('undo_done'));
   } catch (e) { alert(t('clear_failed', { m: e.message })); }
 };
@@ -911,6 +1120,7 @@ $('#s-save').onclick = () => {
   if (code.length < 2) { alert(t('recorder_hint')); return; }
   db.settings.recorder = code; db.settings.lang = $('#s-lang').value;
   db.settings.mymaps = $('#s-mymaps').checked;
+  db.settings.photoQuality = $('#s-photo-q').value;
   save(); applyI18n(); closeSheets();
 };
 
@@ -924,7 +1134,7 @@ function fmtTime(iso) {
 function closeSheets() { document.querySelectorAll('.sheet').forEach((s) => (s.hidden = true)); }
 document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => {
   const sheet = b.closest('.sheet');
-  if (sheet.id === 'sheet-visit') openNest(currentNest); else sheet.hidden = true;
+  if (sheet.id === 'sheet-visit') { discardNewPhotos(); openNest(currentNest); } else sheet.hidden = true;
 }));
 
 // ================= 起動 =================
@@ -938,7 +1148,10 @@ async function boot() {
   }
   applyI18n();
   db.nests.forEach(addMarker);
+  drawOffAreas();
   fitAll();
+  updateBanner();
+  if (canPull()) drivePreload();                     // 「確認」を押したときにすぐログイン画面を出せるように
   navigator.storage?.persist?.().catch(() => {});       // 自動削除されにくくする（対応ブラウザのみ）
   if (!db.welcomed && !db.nests.length && !db.visits.length) welcome();
   else if (!rec()) openSettings();
