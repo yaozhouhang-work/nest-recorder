@@ -47,6 +47,8 @@ const I18N = {
     confirm_delete_nest: '{id} を削除しますか？\nこの巣の確認記録もすべて削除されます。修正履歴には残ります。',
     confirm_delete_visit: 'この確認記録を削除しますか？修正履歴には残ります。',
     save_failed: '保存に失敗しました：{m}\nすぐに書き出してください。',
+    load_failed: 'データを読み込めませんでした：{m}\nページを再読み込みしてください。直らない場合は連絡してください。',
+    storage_where: '保存先：{b}（使用中 約 {u} MB）',
   },
   zh: {
     app_title: '巢记录', trial: '试做版',
@@ -86,6 +88,8 @@ const I18N = {
     confirm_delete_nest: '删除 {id}？\n这个巢的访查记录也会一起删除。修改记录里会保留。',
     confirm_delete_visit: '删除这条访查记录？修改记录里会保留。',
     save_failed: '保存失败：{m}\n请立即导出。',
+    load_failed: '无法读取数据：{m}\n请重新加载页面。仍不行的话请联系。',
+    storage_where: '存储位置：{b}（已用约 {u} MB）',
   },
   en: {
     app_title: 'Nest Recorder', trial: 'prototype',
@@ -125,6 +129,8 @@ const I18N = {
     confirm_delete_nest: 'Delete {id}?\nAll its visits will be deleted too. The edit history keeps a copy.',
     confirm_delete_visit: 'Delete this visit? The edit history keeps a copy.',
     save_failed: 'Saving failed: {m}\nPlease export now.',
+    load_failed: 'Could not load data: {m}\nPlease reload the page. Contact us if it persists.',
+    storage_where: 'Stored in: {b} (about {u} MB used)',
   },
 };
 

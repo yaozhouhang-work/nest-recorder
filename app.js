@@ -1,11 +1,9 @@
-/* 巣記録 試作版 v0.9
+/* 巣記録 試作版 v0.10
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
- * データはこの端末のブラウザ（localStorage）に保存。正式データは書き出した CSV。
+ * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
 'use strict';
 
-const STORE_KEY = 'nest-recorder-v0';
-const BACKUP_KEY = 'nest-recorder-backup';
 const REMIND_EVERY = 5;                         // 未書き出しの変更がこの件数ごとに催促
 const DEFAULT_VIEW = { lat: 43.07, lon: 141.34, zoom: 12 };
 
@@ -18,14 +16,10 @@ const EDIT_COLS = ['edited_at', 'recorder', 'table', 'record_id', 'field', 'old_
 const NUM_FIELDS = new Set(['lat', 'lon', 'gps_lat', 'gps_lon', 'gps_accuracy_m', 'height_m', 'eggs', 'chicks', 'visit_no']);
 
 // ================= データ =================
-let db = load();
+let db = normalizeDb(null);      // 起動時に store.js から読み込む（boot）
+let storeInfo = { backend: '', undoAt: null };
 
-function load() {
-  let d = null;
-  try { d = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { console.warn(e); }
-  if (!d) {
-    try { d = JSON.parse(localStorage.getItem(BACKUP_KEY) || 'null'); } catch (e) { /* ignore */ }
-  }
+function normalizeDb(d) {
   d = d || {};
   // v0.1 → v0.2 移行
   d.nests = (d.nests || []).map((n) => ({ updated_at: n.created_at, recorder: '', nest_type: '', height_m: null,
@@ -40,11 +34,7 @@ function load() {
 }
 function guessLang() { return 'ja'; }   // 日本語を既定に。設定でいつでも切り替え可
 function save() {
-  try {
-    const prev = localStorage.getItem(STORE_KEY);
-    if (prev) localStorage.setItem(BACKUP_KEY, prev);       // 1 世代前を残す
-    localStorage.setItem(STORE_KEY, JSON.stringify(db));
-  } catch (e) { alert(t('save_failed', { m: e.message })); }
+  return storeSave(db, (e) => alert(t('save_failed', { m: e.message })));   // 1 世代前は store.js が残す
 }
 function changed(n = 1) {
   const before = db.unexported;
@@ -805,7 +795,9 @@ async function showDataInfo() {
   $('#exp-last').textContent = db.lastExport ? t('last_export', { t: fmtTime(db.lastExport) }) : t('never_exported');
   let persisted = false;
   try { persisted = await navigator.storage?.persisted?.(); } catch (e) { /* ignore */ }
-  $('#storage-status').textContent = persisted ? t('storage_persist_ok') : t('storage_persist_no');
+  const u = await storeUsage();
+  $('#storage-status').textContent = (persisted ? t('storage_persist_ok') : t('storage_persist_no')) + '\n' +
+    t('storage_where', { b: storeInfo.backend, u: u ? (u.used / 1048576).toFixed(1) : '?' });
   $('#mm-section').hidden = !db.settings.mymaps;
   if (db.settings.mymaps) {
     const n = mmPending().length;
@@ -877,59 +869,38 @@ function openSettings() {
   $('#sheet-settings').hidden = false;
 }
 // ---- この端末のデータを全部消す（1 回だけ取り消せる） ----
-const UNDO_KEY = 'nest-recorder-undo-clear', UNDO_META_KEY = 'nest-recorder-undo-clear-at';
-function readUndo() {
-  const raw = localStorage.getItem(UNDO_KEY); if (!raw) return null;
-  const at = localStorage.getItem(UNDO_META_KEY);
-  if (at) return { raw, cleared_at: at };
-  try { const o = JSON.parse(raw); return o && o.data ? { raw: JSON.stringify(o.data), cleared_at: o.cleared_at } : null; }   // v0.8 の形式
-  catch (e) { return null; }
-}
 function showUndoClear() {
-  const u = readUndo(), b = $('#s-undo-clear');
-  b.hidden = !u;
-  if (u) b.textContent = t('undo_clear', { t: fmtTime(u.cleared_at) });
+  const b = $('#s-undo-clear');
+  b.hidden = !storeInfo.undoAt;
+  if (storeInfo.undoAt) b.textContent = t('undo_clear', { t: fmtTime(storeInfo.undoAt) });
 }
-$('#s-clear').onclick = () => {
+$('#s-clear').onclick = async () => {
   let msg = t('clear_confirm1', { n: db.nests.length, v: db.visits.length });
   if (db.unexported) msg += '\n' + t('clear_unexported', { u: db.unexported });
   if (!confirm(msg)) return;
   if ((prompt(t('clear_confirm2')) || '').trim() !== t('clear_word')) return;
-  // 端末の保存容量（約 5 MB）に余裕がないので、データを 2 重に持たない：
-  // 1 世代前のバックアップを消し、今のデータをそのまま取り消し用の控えに移す
-  const cur = localStorage.getItem(STORE_KEY) || JSON.stringify(db);
-  const backup = localStorage.getItem(BACKUP_KEY);
-  try {
-    localStorage.removeItem(UNDO_KEY); localStorage.removeItem(UNDO_META_KEY);
-    localStorage.removeItem(BACKUP_KEY);
-    localStorage.setItem(UNDO_KEY, cur);
-    localStorage.setItem(UNDO_META_KEY, nowIso());
-  } catch (e) {
-    localStorage.removeItem(UNDO_KEY); localStorage.removeItem(UNDO_META_KEY);
-    try { if (backup) localStorage.setItem(BACKUP_KEY, backup); } catch (e2) { /* ignore */ }
-    alert(t('clear_failed', { m: e.message })); return;                   // 控えが残せないなら消さない
-  }
+  const empty = { ...db, nests: [], visits: [], edits: [], unexported: 0 };
+  ['lastExport', 'mmLastExport', 'lastMerge', 'notDup'].forEach((k) => delete empty[k]);
+  try { storeInfo.undoAt = await storeClear(db, empty); }
+  catch (e) { alert(t('clear_failed', { m: e.message })); return; }   // 控えが残せないなら消さない
   const ids = db.nests.map((n) => n.nest_id);
-  db.nests = []; db.visits = []; db.edits = []; db.unexported = 0;
-  delete db.lastExport; delete db.mmLastExport; delete db.lastMerge; delete db.notDup;
-  localStorage.setItem(STORE_KEY, JSON.stringify(db));                     // save() はバックアップを作るので使わない
+  db = empty;
   ids.forEach(refreshMarker); updateBadge(); fitAll();
   showUndoClear(); alert(t('clear_done'));
 };
-$('#s-undo-clear').onclick = () => {
-  const u = readUndo(); if (!u) return;
-  const keep = db.settings;
+$('#s-undo-clear').onclick = async () => {
   try {
-    localStorage.removeItem(UNDO_KEY); localStorage.removeItem(UNDO_META_KEY);
-    localStorage.setItem(STORE_KEY, u.raw);
-  } catch (e) {
-    try { localStorage.setItem(UNDO_KEY, u.raw); localStorage.setItem(UNDO_META_KEY, u.cleared_at); } catch (e2) { /* ignore */ }
-    alert(t('clear_failed', { m: e.message })); return;
-  }
-  db = load(); db.settings = keep;                                         // 設定は今のものを使う
-  localStorage.setItem(STORE_KEY, JSON.stringify(db));
-  db.nests.forEach((n) => refreshMarker(n.nest_id)); updateBadge(); fitAll();
-  showUndoClear(); alert(t('undo_done'));
+    const data = await storeGetUndo(); if (!data) { storeInfo.undoAt = null; showUndoClear(); return; }
+    const keep = db.settings;
+    const ids = db.nests.map((n) => n.nest_id);
+    db = normalizeDb(data); db.settings = keep;                              // 設定は今のものを使う
+    await save();
+    await storeDropUndo();
+    storeInfo.undoAt = null;
+    ids.forEach(refreshMarker);
+    db.nests.forEach((n) => refreshMarker(n.nest_id)); updateBadge(); fitAll();
+    showUndoClear(); alert(t('undo_done'));
+  } catch (e) { alert(t('clear_failed', { m: e.message })); }
 };
 $('#btn-settings').onclick = openSettings;
 function openHelp() { closeSheets(); $('#sheet-help').hidden = false; $('#sheet-help').scrollTop = 0; }
@@ -957,13 +928,24 @@ document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => {
 }));
 
 // ================= 起動 =================
+async function boot() {
+  try {
+    const r = await storeInit();
+    db = normalizeDb(r.data); storeInfo = r;
+    if (r.migrated) console.info('localStorage → IndexedDB 移行済み');
+  } catch (e) {
+    alert(t('load_failed', { m: e.message })); return;  // 読めないまま空で始めると上書きしてしまうので止める
+  }
+  applyI18n();
+  db.nests.forEach(addMarker);
+  fitAll();
+  navigator.storage?.persist?.().catch(() => {});       // 自動削除されにくくする（対応ブラウザのみ）
+  if (!db.welcomed && !db.nests.length && !db.visits.length) welcome();
+  else if (!rec()) openSettings();
+  else if (db.unexported) remindExport();               // 起動時、未書き出しがあれば必ず催促
+}
 applyI18n();
-db.nests.forEach(addMarker);
-fitAll();
-navigator.storage?.persist?.().catch(() => {});       // 自動削除されにくくする（対応ブラウザのみ）
-if (!db.welcomed && !db.nests.length && !db.visits.length) welcome();
-else if (!rec()) openSettings();
-else if (db.unexported) remindExport();               // 起動時、未書き出しがあれば必ず催促
+boot();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW', e));
