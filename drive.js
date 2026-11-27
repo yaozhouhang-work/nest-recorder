@@ -164,3 +164,8 @@ async function driveDownload(id, name) {
   file.driveId = id;
   return file;
 }
+/* このアカウントがフォルダにファイルを入れられるか（ラボのアカウントかどうかの判定に使う。v0.14〜） */
+async function driveCanWrite(folderId) {
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=capabilities(canAddChildren)&supportsAllDrives=true`);
+  return !!(await res.json()).capabilities?.canAddChildren;
+}

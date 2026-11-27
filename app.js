@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.13
+/* 巣記録 試作版 v0.14
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
@@ -130,6 +130,7 @@ function applyI18n() {
   if (watchId == null) setGpsStatus(t('gps_off'), 'off');
   refreshLayerLabels();
   updateBadge();
+  renderProj();
 }
 function getChip(box) { return box.querySelector('button.on')?.dataset.value || ''; }
 function setChip(box, v) { box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.value === v)); }
@@ -647,7 +648,7 @@ async function buildZip(label) {
   zip.file(`edits_${tag}.csv`, toCsv(db.edits, EDIT_COLS));
   zip.file(`mymaps_${tag}.kmz`, kmz);
   const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip', compression: 'DEFLATE' });
-  return { blob, name: `nest-records_${tag}.zip` };
+  return { blob, name: `${safeName(projName())}_nest-records_${tag}.zip` };   // プロジェクト名を先頭に（v0.14〜）
 }
 function markExported() { db.lastExport = nowIso(); db.unexported = 0; save(); updateBadge(); showDataInfo(); }
 async function exportAll() {
@@ -659,32 +660,51 @@ async function exportAll() {
 $('#exp-all').onclick = exportAll;
 
 // ================= Google ドライブ（任意・drive.js） =================
+/* フォルダの役目（プロジェクトごと、⚙ で選ぶ）
+ *  ラボ調査：masterFolder = マスター（A の置き場）、driveFolder = 提出、photoFolder = 写真（みんな同じ）、archiveFolder = 過去分（ラボのアカウントだけ）
+ *  個人調査：driveFolder = 保存先、photoFolder = 写真（選ばなければ保存先の中に作る） */
 function driveMsg(s) { $('#drive-result').textContent = s; }
-function driveErr(e) {
-  console.warn(e);
-  driveMsg(String(e.message).startsWith('not_loaded') || !navigator.onLine ? t('drive_offline') : t('drive_failed', { m: e.message }));
+function driveErrText(e) {
+  return String(e.message).startsWith('not_loaded') || !navigator.onLine ? t('drive_offline') : t('drive_failed', { m: e.message });
 }
+function driveErr(e) { console.warn(e); driveMsg(driveErrText(e)); }
+function folderKeys() {
+  return projType() === 'lab' ? ['masterFolder', 'driveFolder', 'photoFolder', 'archiveFolder'] : ['driveFolder', 'photoFolder'];
+}
+function folderLabel(k) { return t((projType() === 'lab' ? 'fl_lab_' : 'fl_my_') + k); }
 function showDriveInfo() {
-  $('#drive-section').hidden = !driveEnabled();
-  if (!driveEnabled()) return;
-  const f = db.settings.driveFolder;
-  $('#drive-folder').textContent = (f ? t('drive_folder', { n: f.name }) : t('drive_no_folder')) + '\n' +
-    (db.lastMerge ? t('last_merge', { t: fmtTime(db.lastMerge) }) : t('never_merged'));
-  $('#drive-save').disabled = $('#drive-load').disabled = !f;
-  const np = pendingPhotos().length;
-  $('#drive-photos').textContent = t('photo_upload', { n: np });
-  $('#drive-photos').disabled = !f || !np;
+  const on = driveEnabled(), lab = projType() === 'lab';
+  $('#sec-a').hidden = !on || !lab;
+  $('#drive-save').hidden = !on;
+  $('#drive-load').hidden = !on;
+  $('#drive-save').textContent = t(lab ? 'submit' : 'drive_save');
+  if (!on) { $('#drive-folder').textContent = ''; $('#sec-admin').hidden = true; return; }
+  const f = db.settings.driveFolder, np = pendingPhotos().length;
+  $('#drive-folder').textContent = [
+    f ? t(lab ? 'submit_folder' : 'drive_folder', { n: f.name }) : t('drive_no_folder'),
+    np ? t('photo_pending', { n: np }) : '',
+  ].filter(Boolean).join('\n');
+  $('#drive-save').disabled = !f;
+  $('#sec-admin').hidden = !(lab && db.settings.labAdmin);
+  $('#m-dup').textContent = t('dup_btn', { n: dupCandidates().length });
   showAInfo();
+  checkAdmin();
 }
-async function sendPhotos() {
+async function sendPhotos(say = driveMsg) {
   if (!pendingPhotos().length) return '';
-  const r = await uploadPhotos((i, n) => driveMsg(t('photo_uploading', { i, n })));
+  const r = await uploadPhotos((i, n) => say(t('photo_uploading', { i, n })));
   return t('photo_uploaded', { ok: r.ok, ng: r.ng });
 }
-$('#drive-photos').onclick = async () => {
-  if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
-  try { await driveAuth(); driveMsg(await sendPhotos()); showDriveInfo(); } catch (e) { driveErr(e); }
-};
+/* ラボのアカウントかどうか：マスターのフォルダにファイルを入れられるか。ログイン済みのときだけ確かめる（ログイン画面は出さない） */
+async function checkAdmin(force) {
+  const f = db.settings.masterFolder;
+  if (projType() !== 'lab' || !f || !navigator.onLine) return;
+  if (!force && !(driveToken && Date.now() < driveTokenExp - 60000)) return;
+  try {
+    const v = await driveCanWrite(f.id);
+    if (v !== !!db.settings.labAdmin) { db.settings.labAdmin = v; save(); showDriveInfo(); }
+  } catch (e) { console.warn(e); }
+}
 
 // ---- ラボデータ（A）：マスターのフォルダから最新版を読み込む ----
 let aCheckedNow = false, bannerClosed = false;
@@ -694,16 +714,21 @@ function showAInfo() {
     (f ? t('a_folder', { n: f.name }) : t('a_no_folder'));
   $('#a-pull').disabled = !f;
 }
+/* マスターの中で一番新しい MASTER の ZIP（なければ一番新しい ZIP） */
+async function latestMaster() {
+  const list = await driveListZips(db.settings.masterFolder.id);
+  return { pick: list.find((x) => /MASTER/i.test(x.name)) || list[0], list };
+}
 async function pullMaster(say) {
   const f = db.settings.masterFolder;
-  if (!f) { openData(); return; }
+  if (!f) { openSettings(); return; }
   if (!navigator.onLine) { say(t('drive_offline')); return; }
   try {
     await driveAuth();                         // クリック直後にログイン（ポップアップのブロック対策）
     if (!driveCanRead) { say(t('a_need_read')); return; }
     say(t('a_checking'));
-    const list = await driveListZips(f.id);
-    const pick = list.find((x) => /MASTER/i.test(x.name)) || list[0];
+    checkAdmin(true);
+    const { pick } = await latestMaster();
     if (!pick) { say(t('a_empty', { n: f.name })); return; }
     const cur = db.aVersion;
     aCheckedNow = true;
@@ -716,16 +741,14 @@ async function pullMaster(say) {
     save();
     say(t('a_loaded', { n: pick.name }) + '\n' + $('#import-result').textContent);
     setTimeout(updateBanner, 6000); showAInfo();      // 結果を少し見せてから上部のお知らせを閉じる
-  } catch (e) {
-    console.warn(e);
-    say(String(e.message).startsWith('not_loaded') || !navigator.onLine ? t('drive_offline') : t('drive_failed', { m: e.message }));
-  }
+  } catch (e) { console.warn(e); say(driveErrText(e)); }
 }
-function canPull() { return driveEnabled() && !!db.settings.masterFolder && navigator.onLine; }
+function canPull() { return driveEnabled() && projType() === 'lab' && !!db.settings.masterFolder && navigator.onLine; }
 function updateBanner() {
   const b = $('#a-banner');
   let text = '', go = '';
-  if (!db.aVersion) { text = t('a_banner_none'); go = canPull() ? t('a_banner_load') : t('a_banner_how'); }
+  if (projType() !== 'lab' || !driveEnabled()) text = '';
+  else if (!db.aVersion) { text = t('a_banner_none'); go = canPull() ? t('a_banner_load') : t('a_banner_how'); }
   else if (canPull() && !aCheckedNow) { text = t('a_banner_check', { t: fmtTime(db.aVersion.modifiedTime).split(' ')[0] }); go = t('a_banner_check_btn'); }
   b.hidden = bannerClosed || !text;
   $('#a-banner-text').textContent = text;
@@ -733,64 +756,207 @@ function updateBanner() {
   $('#a-banner-go').hidden = !go;
 }
 $('#a-banner-go').onclick = () => {
-  if (!canPull()) { openData(); $('#a-info').scrollIntoView({ block: 'center' }); return; }
+  if (!canPull()) { openSettings(); $('#folder-section').scrollIntoView({ block: 'center' }); return; }
   pullMaster((m) => { $('#a-banner-text').textContent = m; $('#a-banner-go').hidden = true; $('#a-banner').hidden = false; });
 };
 $('#a-banner-x').onclick = () => { bannerClosed = true; updateBanner(); };
-$('#a-pick').onclick = async () => {
-  try { const f = await drivePickFolder('masterFolder'); if (f) $('#a-result').textContent = ''; showAInfo(); updateBanner(); }
-  catch (e) { console.warn(e); $('#a-result').textContent = t('drive_failed', { m: e.message }); }
-};
 $('#a-pull').onclick = () => pullMaster((m) => { $('#a-result').textContent = m; });
 addEventListener('online', () => { updateBanner(); if (canPull()) drivePreload(); });
 addEventListener('offline', updateBanner);
-$('#drive-pick').onclick = async () => {
-  try { const f = await drivePickFolder(); if (f) driveMsg(''); showDriveInfo(); } catch (e) { driveErr(e); }
-};
+
+// ---- 保存（ラボ調査：提出する／個人調査：ドライブに保存）。記録の ZIP と、まだ送っていない写真 ----
 $('#drive-save').onclick = async () => {
-  if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
+  if (!navigator.onLine) { driveMsg(t('submit_offline')); return; }
   try {
     await driveAuth();                       // ログイン画面はクリック直後に出す（ポップアップのブロック対策）
     driveMsg(t('drive_saving'));
     const { blob, name } = await buildZip();
     await driveUpload(blob, name);
     markExported();
-    driveMsg(t('drive_saved', { f: name }));
-    const pm = await sendPhotos();                 // まだ送っていない写真も一緒に
-    if (pm) driveMsg(t('drive_saved', { f: name }) + '\n' + pm);
+    const done = t(projType() === 'lab' ? 'submitted' : 'drive_saved', { f: name });
+    driveMsg(done);
+    let pm = '';
+    try { pm = await sendPhotos((m) => driveMsg(done + '\n' + m)); } catch (e) { console.warn(e); pm = driveErrText(e); }
+    if (pm) driveMsg(done + '\n' + pm);
     showDriveInfo();
   } catch (e) { driveErr(e); }
 };
-/* 複数のファイルをまとめる：端末のデータに取り込み → 全部入りの ZIP を書き出し（端末 + ドライブ）→ ドライブの元ファイルは「過去分」へ */
-const ARCHIVE_FOLDER = '過去分';
+
+// ---- 更新マスター（ラボのアカウント）：A と「提出」の ZIP をまとめて新しい A を作る ----
+function mSay(s) { $('#m-result').textContent = s; }
+$('#m-dup').onclick = openDup;
+$('#m-update').onclick = async () => {
+  const s = db.settings;
+  if (!s.masterFolder || !s.driveFolder || !s.archiveFolder) { mSay(t('m_need_folders')); return; }
+  if (!navigator.onLine) { mSay(t('drive_offline')); return; }
+  try {
+    await driveAuth();
+    if (!driveCanRead) { mSay(t('a_need_read')); return; }
+    if (!(await driveCanWrite(s.masterFolder.id))) { s.labAdmin = false; save(); showDriveInfo(); mSay(t('m_not_admin')); return; }
+    // 1. 最新の A（まだ読み込んでいなければ）
+    mSay(t('a_checking'));
+    const { pick: oldA, list: masterList } = await latestMaster();
+    if (oldA && !(db.aVersion && db.aVersion.id === oldA.id && db.aVersion.modifiedTime === oldA.modifiedTime))
+      await importFiles([await driveDownload(oldA.id, oldA.name)]);
+    // 2. 「提出」の ZIP（前にまとめたものは飛ばす）
+    const done = new Set((db.mergedFiles || []).map((m) => m.id + '|' + m.modifiedTime));
+    const subs = (await driveListZips(s.driveFolder.id)).filter((f) => !done.has(f.id + '|' + f.modifiedTime));
+    // 新しい提出がなく、この端末でも何も変えていない（未保存の変更 0）なら、新しい版は作らない
+    if (!subs.length && (oldA ? !db.unexported : !db.nests.length)) { mSay(t('m_nothing')); return; }
+    if (!confirm(t('m_confirm', { n: subs.length, a: oldA ? oldA.name : t('m_no_a') }))) { mSay(''); return; }
+    const files = [];
+    for (const [i, f] of subs.entries()) { mSay(t('m_loading', { i: i + 1, n: subs.length })); files.push(await driveDownload(f.id, f.name)); }
+    if (files.length) await importFiles(files);
+    const nd = dupCandidates().length;
+    if (nd && confirm(t('m_dup_first', { n: nd }))) { mSay(t('m_dup_later')); openDup(); return; }
+    // 3. 新しい A を「マスター」へ
+    mSay(t('m_saving'));
+    const { blob, name } = await buildZip('MASTER');
+    const up = await driveUpload(blob, name, { folderId: s.masterFolder.id });
+    // 4. 古い A と、まとめた提出のファイルを「過去分」へ
+    const ng = [];
+    const moveOut = [...masterList.filter((f) => f.id !== up.id), ...subs];
+    for (const f of moveOut) { try { await driveMove(f.id, s.archiveFolder.id); } catch (e) { console.warn(e); ng.push(f.name); } }
+    db.mergedFiles = [...(db.mergedFiles || []), ...subs.map((f) => ({ id: f.id, modifiedTime: f.modifiedTime, name: f.name }))].slice(-500);
+    const meta = (await (await driveFetch(`https://www.googleapis.com/drive/v3/files/${up.id}?fields=id,name,modifiedTime&supportsAllDrives=true`)).json());
+    db.aVersion = { id: meta.id, name: meta.name, modifiedTime: meta.modifiedTime, loaded_at: nowIso() };
+    db.lastMerge = nowIso();
+    markExported(); aCheckedNow = true; updateBanner();
+    mSay([t('m_done', { f: name, n: subs.length }), ng.length ? t('m_move_failed', { f: ng.join(', ') }) : '',
+      nd ? t('dup_after_merge', { n: nd }) : ''].filter(Boolean).join('\n'));
+    showDriveInfo();
+  } catch (e) { console.warn(e); mSay(driveErrText(e)); }
+};
+
+/* 複数のファイル（端末の ZIP / CSV）をまとめる：取り込み → 全部入りの ZIP を端末に書き出す。ドライブがないときのため */
 async function mergeFiles(files) {
   if (!files.length || !confirm(t('merge_confirm', { n: files.length }))) return;
   await importFiles(files);
   const { blob, name } = await buildZip('ALL');
   const msg = [$('#import-result').textContent];
-  const toDrive = driveEnabled() && db.settings.driveFolder && navigator.onLine && driveToken && Date.now() < driveTokenExp - 60000;
-  if (toDrive) {
-    try { await driveUpload(blob, name); msg.push(t('merge_saved_drive')); } catch (e) { console.warn(e); msg.push(t('drive_failed', { m: e.message })); }
-  } else if (driveEnabled()) msg.push(t('merge_drive_skip'));
   await shareOrDownload([new File([blob], name, { type: 'application/zip' })]);
-  msg.splice(1, 0, t('merge_saved_local', { f: name }));
+  msg.push(t('merge_saved_local', { f: name }));
   markExported();
-  const src = files.filter((f) => f.driveId);
-  if (toDrive && src.length && confirm(t('merge_archive_confirm', { n: src.length }))) {
-    const ng = [];
-    try {
-      const arch = await driveEnsureSubfolder(ARCHIVE_FOLDER);
-      for (const f of src) { try { await driveMove(f.driveId, arch); } catch (e) { console.warn(e); ng.push(f.name); } }
-      msg.push(t('merge_archived', { n: src.length - ng.length }));
-    } catch (e) { console.warn(e); src.forEach((f) => ng.push(f.name)); }
-    if (ng.length) msg.push(t('merge_archive_failed', { f: ng.join(', ') }));
-  }
   db.lastMerge = nowIso(); save();
   const nd = dupCandidates().length;
   if (nd) msg.push(t('dup_after_merge', { n: nd }));
   openData();
   $('#import-result').textContent = msg.filter(Boolean).join('\n');
 }
+
+// ================= プロジェクト（v0.14〜） =================
+/* 調査ごとにデータを完全に分ける（巣・確認記録・修正履歴・写真・ドライブのフォルダ・書き出し）。
+ * 種類：lab = ラボ調査（ラボデータ A・提出・更新マスター）、personal = 個人調査（A なし、自分のフォルダへ保存）。
+ * 記録者・言語・写真の画質・My Maps の設定と、オフライン地図はどのプロジェクトでも共通。
+ * IndexedDB が使えない端末では、最初のプロジェクトだけ。 */
+const SHARED_SETTINGS = ['lang', 'recorder', 'photoQuality', 'mymaps'];
+let projects = { list: [{ id: 'main', name: '', type: 'lab' }], current: 'main' };
+const curProj = () => projects.list.find((p) => p.id === projects.current) || projects.list[0];
+function projType() { return curProj().type || 'lab'; }
+function projName() { return curProj().name || t('proj_default_name'); }
+function projLabel(p) {
+  const n = p.name || t('proj_default_name'), ty = t('ptype_' + (p.type || 'lab'));
+  return n === ty ? n : `${n}（${ty}）`;
+}
+function renderProj() {
+  const multi = projects.list.length > 1, p = curProj();
+  const badge = $('#proj-badge');
+  badge.hidden = !multi && p.type !== 'personal';
+  badge.textContent = projName();
+  badge.className = 'proj-badge ' + (p.type === 'personal' ? 'personal' : 'lab');
+  $('#data-proj').textContent = t('proj_now', { n: projLabel(p) });
+  $('#data-proj').className = 'proj-line ' + (p.type === 'personal' ? 'personal' : 'lab');
+}
+$('#proj-badge').onclick = () => openSettings();
+async function saveProjects() { if (storeInfo.backend === 'IndexedDB') await storeSetProjects(projects); }
+/* 切り替え：今のデータを保存 → 読み込み → 共通の設定とオフライン地図を引き継ぐ → 地図を描き直す */
+async function switchProject(id, fresh) {
+  if (id === projects.current && !fresh) return;
+  await save();
+  const keep = Object.fromEntries(SHARED_SETTINGS.filter((k) => k in db.settings).map((k) => [k, db.settings[k]]));
+  const offline = db.offline;
+  const r = await storeLoadProject(id);
+  const ids = db.nests.map((n) => n.nest_id);
+  ids.forEach((nid) => { const m = markers.get(nid); if (m) { m.remove(); markers.delete(nid); } });
+  db = normalizeDb(r.data);
+  Object.assign(db.settings, keep);
+  db.offline = offline;
+  if (fresh) db.welcomed = true;
+  storeInfo.undoAt = r.undoAt;
+  projects.current = id;
+  await saveProjects();
+  await save();
+  photoUrls.forEach((u) => u && URL.revokeObjectURL(u)); photoUrls.clear();
+  aCheckedNow = false; bannerClosed = false;
+  db.nests.forEach(addMarker);
+  fitAll(); updateBadge(); updateBanner(); renderProj();
+}
+$('#s-proj').onchange = async () => { await switchProject($('#s-proj').value); openSettings(); };
+$('#proj-new').onclick = () => {
+  const name = (prompt(t('proj_new_name')) || '').trim();
+  if (!name) return;
+  const make = async (type) => {
+    const id = 'p' + Date.now().toString(36);
+    projects.list.push({ id, name, type, created_at: nowIso() });
+    await switchProject(id, true);
+    openSettings();
+    alert(t('proj_created', { n: name }) + (type === 'lab' ? '\n' + t('proj_created_lab') : ''));
+  };
+  modal(t('proj_type_title'), t('proj_type_body'), [
+    [t('ptype_lab'), 'primary', () => make('lab')],
+    [t('ptype_personal'), 'primary', () => make('personal')],
+    [t('cancel'), '', null],
+  ]);
+};
+$('#proj-rename').onclick = async () => {
+  const p = curProj();
+  const name = (prompt(t('proj_rename_prompt'), p.name || t('proj_default_name')) || '').trim();
+  if (!name) return;
+  p.name = name; await saveProjects(); renderProj(); openSettings();
+};
+$('#proj-del').onclick = async () => {
+  const p = curProj();
+  if (p.id === 'main') { alert(t('proj_del_main')); return; }
+  let msg = t('proj_del_confirm', { n: projName(), a: db.nests.length, v: db.visits.length, p: db.photos.length });
+  if (db.unexported) msg += '\n' + t('clear_unexported', { u: db.unexported });
+  if (!confirm(msg)) return;
+  if ((prompt(t('clear_confirm2')) || '').trim() !== t('clear_word')) return;
+  const id = p.id;
+  await switchProject('main');
+  await storeDeleteProject(id);
+  projects.list = projects.list.filter((x) => x.id !== id);
+  await saveProjects(); renderProj(); openSettings();
+  alert(t('proj_deleted', { n: p.name }));
+};
+/* ⚙ のプロジェクトとフォルダ */
+function showProjSettings() {
+  const idbOk = storeInfo.backend === 'IndexedDB';
+  $('#proj-section').hidden = !idbOk;
+  $('#s-proj').innerHTML = projects.list.map((p) => `<option value="${esc(p.id)}">${esc(projLabel(p))}</option>`).join('');
+  $('#s-proj').value = projects.current;
+  $('#proj-type').textContent = t('ptype_hint_' + projType());
+  $('#proj-del').hidden = curProj().id === 'main';
+  const on = driveEnabled();
+  $('#folder-section').hidden = !on;
+  if (!on) return;
+  $('#folders-hint').textContent = t('folders_hint_' + projType());
+  $('#folder-list').innerHTML = folderKeys().map((k) => {
+    const f = db.settings[k];
+    return `<li><div><b>${esc(folderLabel(k))}</b><small>${f ? esc(f.name) : esc(t('folder_none'))}</small></div>
+      <button type="button" data-folder="${k}">${esc(t(f ? 'folder_change' : 'folder_pick'))}</button></li>`;
+  }).join('');
+}
+$('#folder-list').onclick = async (e) => {
+  const b = e.target.closest('button[data-folder]'); if (!b) return;
+  if (!navigator.onLine) { alert(t('drive_offline')); return; }
+  try {
+    const k = b.dataset.folder;
+    const f = await drivePickFolder(k);
+    if (f && k === 'masterFolder') { db.settings.labAdmin = false; aCheckedNow = false; checkAdmin(true); updateBanner(); }
+    showProjSettings();
+  } catch (e) { console.warn(e); alert(driveErrText(e)); }
+};
+
 // ---- 重複の候補（同じ巣を別々に登録したかもしれない組） ----
 const DUP_M = 20;
 function distM(a, b) {
@@ -930,10 +1096,6 @@ $('#btn-merge').onclick = () => $('#file-merge').click();
 $('#file-merge').onchange = async (e) => {
   const files = [...e.target.files]; e.target.value = '';
   if (files.length) await mergeFiles(files);
-};
-$('#drive-merge').onclick = async () => {
-  if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
-  try { const files = await drivePickFiles(); driveMsg(''); await mergeFiles(files); } catch (e) { driveErr(e); }
 };
 $('#drive-load').onclick = async () => {
   if (!navigator.onLine) { driveMsg(t('drive_offline')); return; }
@@ -1154,7 +1316,7 @@ function modal(title, body, buttons) {
 function remindExport() {
   if (!db.unexported) return;
   modal(t('remind_title'), t('remind_body', { n: db.unexported }), [
-    [t('remind_export'), 'primary', exportAll],
+    [t('remind_export'), 'primary', () => (driveEnabled() && db.settings.driveFolder ? openData() : exportAll())],
     [t('remind_later'), '', null],
   ]);
 }
@@ -1173,6 +1335,7 @@ function openSettings() {
   $('#s-recorder').value = db.settings.recorder;
   $('#s-mymaps').checked = !!db.settings.mymaps;
   $('#s-photo-q').value = photoQuality();
+  showProjSettings();
   showUndoClear();
   $('#sheet-settings').hidden = false;
 }
@@ -1188,7 +1351,7 @@ $('#s-clear').onclick = async () => {
   if (!confirm(msg)) return;
   if ((prompt(t('clear_confirm2')) || '').trim() !== t('clear_word')) return;
   const empty = { ...db, nests: [], visits: [], edits: [], photos: [], unexported: 0 };
-  ['lastExport', 'mmLastExport', 'lastMerge', 'notDup', 'aVersion'].forEach((k) => delete empty[k]);
+  ['lastExport', 'mmLastExport', 'lastMerge', 'notDup', 'aVersion', 'mergedFiles'].forEach((k) => delete empty[k]);
   try { storeInfo.undoAt = await storeClear(db, empty); }
   catch (e) { alert(t('clear_failed', { m: e.message })); return; }   // 控えが残せないなら消さない
   const ids = db.nests.map((n) => n.nest_id);
@@ -1241,11 +1404,14 @@ async function boot() {
   try {
     const r = await storeInit();
     db = normalizeDb(r.data); storeInfo = r;
+    if (r.projects?.list?.length) projects = r.projects;
+    if (!projects.list.some((p) => p.id === projects.current)) projects.current = projects.list[0].id;
     if (r.migrated) console.info('localStorage → IndexedDB 移行済み');
   } catch (e) {
     alert(t('load_failed', { m: e.message })); return;  // 読めないまま空で始めると上書きしてしまうので止める
   }
   applyI18n();
+  renderProj();
   db.nests.forEach(addMarker);
   drawOffAreas();
   fitAll();

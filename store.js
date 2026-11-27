@@ -1,6 +1,8 @@
 /* データの保存先（v0.10〜）：IndexedDB。
  * localStorage（約 5 MB）では足りなくなったため。使えない環境では localStorage に戻る。
  * キー：'db' = 今のデータ、'backup' = 1 世代前、'undo' = 全消去の取り消し用 { data, cleared_at }
+ * プロジェクト（v0.14〜）：最初のプロジェクト（'main'）は上のキーのまま。ほかのプロジェクトはキーの後ろに '@ID'。
+ *   'projects' = { list: [{ id, name, type: 'lab' | 'personal', created_at }], current }
  */
 'use strict';
 
@@ -10,6 +12,8 @@ const LS_KEYS = { db: 'nest-recorder-v0', backup: 'nest-recorder-backup',
 
 let idb = null;            // IDBDatabase。null なら localStorage を使う
 let saveChain = Promise.resolve();
+let storeProj = 'main';    // 今のプロジェクト
+const pk = (base, proj = storeProj) => (proj === 'main' ? base : `${base}@${proj}`);
 
 function idbOpen(version) {
   return new Promise((resolve, reject) => {
@@ -53,7 +57,7 @@ function lsUndo() {
 async function storeInit() {
   try { if (window.indexedDB) idb = await idbOpen(); } catch (e) { console.warn('IndexedDB', e); idb = null; }
   if (!idb) return { data: lsJson(LS_KEYS.db) || lsJson(LS_KEYS.backup), undoAt: lsUndo()?.cleared_at || null, backend: 'localStorage' };
-  let got = await idbTx([['get', 'db'], ['get', 'backup'], ['get', 'undo']]);
+  let got = await idbTx([['get', 'db'], ['get', 'backup'], ['get', 'undo'], ['get', 'projects']]);
   let migrated = false;
   if (got.db === undefined && localStorage.getItem(LS_KEYS.db) !== null) {
     // 旧版のデータを移す。書けたことを読み直して確かめてから localStorage を消す
@@ -68,7 +72,30 @@ async function storeInit() {
       migrated = true;
     }
   }
-  return { data: got.db || got.backup || null, undoAt: got.undo?.cleared_at || null, backend: 'IndexedDB', migrated };
+  const projects = got.projects || null;
+  if (projects && projects.current && projects.current !== 'main' && projects.list?.some((p) => p.id === projects.current)) {
+    const r = await storeLoadProject(projects.current);
+    return { ...r, backend: 'IndexedDB', migrated, projects };
+  }
+  return { data: got.db || got.backup || null, undoAt: got.undo?.cleared_at || null, backend: 'IndexedDB', migrated, projects };
+}
+// プロジェクトを切り替えて読み込む（IndexedDB のときだけ）
+async function storeLoadProject(id) {
+  await saveChain;
+  storeProj = id;
+  const got = await idbTx([['get', pk('db')], ['get', pk('backup')], ['get', pk('undo')]]);
+  return { data: got[pk('db')] || got[pk('backup')] || null, undoAt: got[pk('undo')]?.cleared_at || null };
+}
+async function storeSetProjects(projects) { await saveChain; await idbTx([['put', 'projects', projects]]); }
+// プロジェクトのデータ（記録・控え・写真）を全部消す
+async function storeDeleteProject(id) {
+  await saveChain;
+  const keys = await new Promise((ok, ng) => {
+    const r = idb.transaction(IDB_STORE).objectStore(IDB_STORE).getAllKeys();
+    r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error);
+  });
+  const suffix = '@' + id;
+  await idbTx(keys.filter((k) => typeof k === 'string' && k.endsWith(suffix)).map((k) => ['del', k]));
 }
 
 // 保存。順番に実行し、前のデータを 'backup' に回す。失敗したら onError
@@ -81,8 +108,9 @@ function storeSave(data, onError) {
       localStorage.setItem(LS_KEYS.db, JSON.stringify(snap));
       return;
     }
-    const { db: prev } = await idbTx([['get', 'db']]);
-    await idbTx(prev ? [['put', 'backup', prev], ['put', 'db', snap]] : [['put', 'db', snap]]);
+    const kd = pk('db'), kb = pk('backup');
+    const prev = (await idbTx([['get', kd]]))[kd];
+    await idbTx(prev ? [['put', kb, prev], ['put', kd, snap]] : [['put', kd, snap]]);
   }).catch((e) => onError && onError(e));
   return saveChain;
 }
@@ -100,29 +128,29 @@ async function storeClear(current, empty) {
     localStorage.setItem(LS_KEYS.db, JSON.stringify(emp));
     return at;
   }
-  await idbTx([['put', 'undo', { data: cur, cleared_at: at }], ['del', 'backup'], ['put', 'db', emp]]);
+  await idbTx([['put', pk('undo'), { data: cur, cleared_at: at }], ['del', pk('backup')], ['put', pk('db'), emp]]);
   return at;
 }
 // 取り消し用の控え（データ）。なければ null
 async function storeGetUndo() {
   await saveChain;
   if (!idb) return lsUndo()?.data || null;
-  const { undo } = await idbTx([['get', 'undo']]);
+  const undo = (await idbTx([['get', pk('undo')]]))[pk('undo')];
   return undo ? undo.data : null;
 }
 // 取り消しが済んだら控えを消す
 async function storeDropUndo() {
   await saveChain;
   if (!idb) { localStorage.removeItem(LS_KEYS.undo); localStorage.removeItem(LS_KEYS.undoAt); return; }
-  await idbTx([['del', 'undo']]);
+  await idbTx([['del', pk('undo')]]);
 }
 async function storeUsage() {
   try { const e = await navigator.storage?.estimate?.(); return e ? { used: e.usage, quota: e.quota } : null; }
   catch (e) { return null; }
 }
 
-// ---- 写真の本体（v0.11〜）：キー 'photo:名前' ----
+// ---- 写真の本体（v0.11〜）：キー 'photo:名前'（main 以外のプロジェクトは後ろに '@ID'） ----
 function needIdb() { if (!idb) throw new Error('この端末では写真を保存できません（IndexedDB が使えません）'); }
-async function storePutPhoto(name, rec) { needIdb(); await idbTx([['put', 'photo:' + name, rec]]); }
-async function storeGetPhoto(name) { if (!idb) return null; return (await idbTx([['get', 'photo:' + name]]))['photo:' + name] || null; }
-async function storeDelPhoto(name) { if (!idb) return; await idbTx([['del', 'photo:' + name]]); }
+async function storePutPhoto(name, rec) { needIdb(); await idbTx([['put', pk('photo:' + name), rec]]); }
+async function storeGetPhoto(name) { if (!idb) return null; const k = pk('photo:' + name); return (await idbTx([['get', k]]))[k] || null; }
+async function storeDelPhoto(name) { if (!idb) return; await idbTx([['del', pk('photo:' + name)]]); }

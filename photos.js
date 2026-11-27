@@ -1,8 +1,10 @@
 /* 写真（v0.11〜）
  * - 確認記録に写真を付ける。画質を選んで縮小（標準 1600 px / 高画質 2560 px / 原寸）
- * - 名前は「巣の名前_日付_連番」に自動で変える（例：26_ヒヨドリ3_20261126_01.jpg）
+ * - 名前は「巣の名前_日付_記録者_連番」に自動で変える（例：26_ヒヨドリ3_20261126_YAO_01.jpg。記録者は v0.14〜。
+ *   みんなの写真を 1 つのフォルダに集めるので、同じ日に同じ巣を撮っても名前がぶつからないように）
  * - 本体はこの端末の IndexedDB（store.js、キー 'photo:名前'）。一覧は db.photos
- * - Google ドライブの保存先フォルダの中の「写真」フォルダへアップロード（ZIP には入れない。CSV は名前だけ）
+ * - Google ドライブの写真フォルダ（⚙ で選んだもの。ラボ調査ではみんな同じフォルダ）へアップロード
+ *   （個人調査で選んでいなければ保存先の中の「写真」）。ZIP には入れない。CSV は名前だけ
  */
 'use strict';
 
@@ -13,7 +15,7 @@ function photoQuality() { return db.settings.photoQuality || 'high'; }
 function safeName(s) { return String(s || '').trim().replace(/[\\/:*?"<>|#%\s]+/g, '_').replace(/^_+|_+$/g, '') || 'nest'; }
 function photoStem(nest, datetime) {
   const d = String(datetime || nowIso()).slice(0, 10).replace(/-/g, '');
-  return `${safeName(nest.name || nest.nest_id)}_${d}_`;
+  return `${safeName(nest.name || nest.nest_id)}_${d}_${safeName(rec() || 'XX')}_`;
 }
 /* 同じ巣・同じ日の連番。taken = この画面でまだ保存していない分の名前 */
 function nextPhotoName(stem, ext, taken = []) {
@@ -68,7 +70,8 @@ function pendingPhotos() { return db.photos.filter((p) => !p.drive_id && p.local
 async function uploadPhotos(onProgress) {
   const list = pendingPhotos();
   if (!list.length) return { ok: 0, ng: 0 };
-  const folder = await driveEnsureSubfolder(PHOTO_FOLDER);
+  if (projType() === 'lab' && !db.settings.photoFolder) throw new Error(t('photo_need_folder'));
+  const folder = db.settings.photoFolder?.id || await driveEnsureSubfolder(PHOTO_FOLDER);
   let ok = 0, ng = 0;
   for (const p of list) {
     try {

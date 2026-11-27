@@ -14,7 +14,7 @@
 </head>
 <body>
   <header id="topbar">
-    <span class="title"><span data-i18n="app_title"></span> <small><span data-i18n="trial"></span> v0.13</small></span>
+    <span class="title"><span data-i18n="app_title"></span> <button id="proj-badge" class="proj-badge" hidden></button> <small><span data-i18n="trial"></span> v0.14</small></span>
     <span class="top-right">
       <button id="unexported" class="badge" hidden></button>
       <span id="gps-status" class="gps off"></span>
@@ -111,54 +111,36 @@
   <!-- データ -->
   <section id="sheet-data" class="sheet" hidden>
     <div class="sheet-head"><strong data-i18n="data_title"></strong><button class="close" data-close>✕</button></div>
+    <p class="proj-line" id="data-proj"></p>
     <p class="warn" data-i18n="data_warn"></p>
-    <div class="actions col">
-      <button id="exp-all" class="primary" data-i18n="export_all"></button>
-    </div>
-    <p class="hint" id="exp-last"></p>
-    <div id="drive-section" hidden>
-      <hr>
+    <!-- ラボデータ（A）：ラボ調査のプロジェクトだけ -->
+    <div id="sec-a" hidden>
       <h3 class="sub" data-i18n="a_title"></h3>
       <p class="hint" id="a-info"></p>
-      <div class="actions col">
-        <button id="a-pull" class="primary" data-i18n="a_pull"></button>
-        <button id="a-pick" class="wide" data-i18n="a_pick"></button>
-      </div>
-      <p class="hint" data-i18n="a_note"></p>
+      <div class="actions col"><button id="a-pull" class="primary" data-i18n="a_pull"></button></div>
       <p class="hint" id="a-result"></p>
       <hr>
-      <h3 class="sub" data-i18n="drive_title"></h3>
-      <p class="hint" id="drive-folder"></p>
-      <div class="actions col">
-        <button id="drive-save" class="primary" data-i18n="drive_save"></button>
-        <button id="drive-load" class="wide" data-i18n="drive_load"></button>
-        <button id="drive-merge" class="wide" data-i18n="drive_merge"></button>
-        <button id="drive-photos" class="wide"></button>
-        <button id="drive-pick" class="wide" data-i18n="drive_pick"></button>
-      </div>
-      <p class="hint" data-i18n="drive_note"></p>
-      <p class="hint" id="drive-result"></p>
     </div>
-    <div id="mm-section" hidden>
+    <!-- 記録を保存 -->
+    <h3 class="sub" data-i18n="save_title"></h3>
+    <p class="hint" id="drive-folder"></p>
+    <div class="actions col">
+      <button id="drive-save" class="primary"></button>
+      <button id="exp-all" class="wide" data-i18n="export_all"></button>
+    </div>
+    <p class="hint" id="exp-last"></p>
+    <p class="hint" id="drive-result"></p>
+    <!-- ラボ管理：ラボのアカウント（マスターに書き込める）だけ -->
+    <div id="sec-admin" hidden>
       <hr>
-      <h3 class="sub" data-i18n="mm_title"></h3>
-      <button id="exp-mm" class="wide" data-i18n="mm_export"></button>
-      <p class="hint" id="mm-info"></p>
-      <ol class="hint steps">
-        <li data-i18n="mm_step1"></li>
-        <li><span data-i18n="mm_step2"></span> <a href="https://www.google.com/maps/d/" target="_blank" rel="noopener">My Maps ↗</a></li>
-        <li data-i18n="mm_step3"></li>
-      </ol>
-      <p class="hint" data-i18n="mm_note"></p>
+      <h3 class="sub" data-i18n="admin_title"></h3>
+      <p class="hint" data-i18n="admin_hint"></p>
+      <div class="actions col">
+        <button id="m-update" class="primary" data-i18n="m_update"></button>
+        <button id="m-dup" class="wide"></button>
+      </div>
+      <p class="hint" id="m-result"></p>
     </div>
-    <hr>
-    <button id="btn-import" class="wide" data-i18n="import"></button>
-    <p class="hint" data-i18n="import_hint"></p>
-    <button id="btn-merge" class="wide" data-i18n="merge"></button>
-    <p class="hint" data-i18n="merge_hint"></p>
-    <p class="hint" id="import-result"></p>
-    <button id="btn-dup" class="wide"></button>
-    <p class="hint" id="dup-hint"></p>
     <hr>
     <h3 class="sub" data-i18n="off_title"></h3>
     <p class="hint" data-i18n="off_hint"></p>
@@ -168,6 +150,32 @@
       <button id="off-stop" class="wide" data-i18n="off_stop" hidden></button>
       <button id="off-clear" class="wide" data-i18n="off_clear"></button>
     </div>
+    <hr>
+    <details id="data-more">
+      <summary data-i18n="more_title"></summary>
+      <div class="actions col">
+        <button id="btn-import" class="wide" data-i18n="import"></button>
+        <button id="drive-load" class="wide" data-i18n="drive_load"></button>
+        <button id="btn-merge" class="wide" data-i18n="merge"></button>
+        <button id="btn-dup" class="wide"></button>
+      </div>
+      <p class="hint" data-i18n="import_hint"></p>
+      <p class="hint" data-i18n="merge_hint"></p>
+      <p class="hint" id="dup-hint"></p>
+      <div id="mm-section" hidden>
+        <hr>
+        <h3 class="sub" data-i18n="mm_title"></h3>
+        <button id="exp-mm" class="wide" data-i18n="mm_export"></button>
+        <p class="hint" id="mm-info"></p>
+        <ol class="hint steps">
+          <li data-i18n="mm_step1"></li>
+          <li><span data-i18n="mm_step2"></span> <a href="https://www.google.com/maps/d/" target="_blank" rel="noopener">My Maps ↗</a></li>
+          <li data-i18n="mm_step3"></li>
+        </ol>
+        <p class="hint" data-i18n="mm_note"></p>
+      </div>
+    </details>
+    <p class="hint" id="import-result"></p>
     <hr>
     <p class="hint" id="storage-status"></p>
   </section>
@@ -190,7 +198,7 @@
       <li>右上の <b>⚙</b> で「記録者コード」（自分のイニシャルなど英字 2〜4 文字）を入れて保存</li>
       <li><b>「＋ 現在地に巣を登録」</b>を押す（位置情報の利用を許可してください）</li>
       <li>出てきた画面で種などを入れて保存 → <b>「＋ 確認を記録」</b>で状態や卵数を記録</li>
-      <li><b>💾 データ</b> →「すべて書き出す」で、記録が ZIP ファイルとして保存されます</li>
+      <li><b>💾 データ</b> →「提出する」（ラボ調査）か「端末にバックアップ」で記録を保存します</li>
     </ol>
 
     <h3>1. 準備</h3>
@@ -232,7 +240,7 @@
     <p>巣をタップ →「<b>＋ 確認を記録</b>」</p>
     <ul>
       <li>日時（あとから入力するときは変更できます）、状態、卵数、雛数、親鳥、写真番号、写真、備考</li>
-      <li><b>写真</b>：「＋ 写真を追加」で撮影またはアルバムから選びます。名前は「巣の名前_日付_連番」（例：26_ヒヨドリ3_20261126_01.jpg）に自動で変わります。画質は ⚙ で選べます（既定は高画質）。写真はこの端末に保存され、ドライブの保存先の「写真」フォルダへ送れます（書き出しの ZIP には入りません）</li>
+      <li><b>写真</b>：「＋ 写真を追加」で撮影またはアルバムから選びます。名前は「巣の名前_日付_記録者_連番」（例：26_ヒヨドリ3_20261126_YAO_01.jpg）に自動で変わります。画質は ⚙ で選べます（既定は高画質）。写真はこの端末に保存され、「提出する」「ドライブに保存」のときに写真のフォルダへ送られます（書き出しの ZIP には入りません）</li>
       <li>状態：造巣中 → 完成・空 → 初卵 → 産卵中 → 全卵 → 抱卵中 → 孵化 → 雛あり → 巣立ち（失敗・放棄、不明 も選べます）。以前の「卵あり」は「卵あり（段階不明）」になりました</li>
       <li>選択ボタンはもう一度押すと解除できます</li>
       <li><b>空欄は「記録していない」</b>という意味で、0 とは区別されます</li>
@@ -243,7 +251,7 @@
     <h3>5. データの保存と読み込み（💾 データ）</h3>
     <ul>
       <li>画面上部の赤い<b>「未書き出し ◯ 件」</b>は、まだ保存していない変更の数です。5 件ごとと、アプリを開いたときに書き出しをお願いします</li>
-      <li><b>「すべて書き出す」</b>：ZIP ファイル 1 つにまとめて保存します（中身は表 3 つの CSV と、Google My Maps 用の KMZ）
+      <li><b>「端末にバックアップ」</b>：ZIP ファイル 1 つにまとめて保存します（中身は表 3 つの CSV と、Google My Maps 用の KMZ）
         <ul>
           <li>iPhone：共有メニューで「ファイルに保存」</li>
           <li>Android：ダウンロードフォルダに保存</li>
@@ -251,8 +259,12 @@
       <li><b>「読み込む」</b>：このツールの ZIP、他の人の ZIP / CSV、Google My Maps の KMZ を読み込めます。同じ巣が重複することはありません</li>
       <li><b>「複数のファイルをまとめる」</b>：何人分かの ZIP を選ぶと、この端末に取り込んだうえで全部入りの ZIP（nest-records_ALL_…）を 1 つ作ります。次の調査の前はこれ 1 つを読み込めば OK。誰かが消した記録は復活しません</li>
       <li><b>「重複の候補を確認」</b>：別々の人が同じ巣を登録したかもしれない組（20 m 以内・同じ区分・種が同じか空欄）を表示します。ただし、両方に名前があって違う／同じ人が登録した／巣のタイプが違う／高さが 3 m 以上違う組は「明らかに別の巣」として出しません。名前が同じ組は 100 m 以内まで出します。「地図で見る」で 2 つの巣を大きく拡大して比べられます。同じ巣なら「まとめる」で確認記録を 1 つの巣に集め、別の巣なら「別の巣」で今後は表示しません</li>
-      <li><b>Google ドライブ</b>：ラボの共有フォルダに保存・読み込み・まとめができます。まとめた後の元のファイルは「過去分」フォルダに移せます。初めてのときは「保存先フォルダを選ぶ」から。「ドライブに保存」のときに、まだ送っていない写真も送ります</li>
-      <li><b>ラボデータ（これまでの全部の巣）</b>：最初に「ラボデータのフォルダを選ぶ」でマスターのフォルダを選んでおくと、電波のあるときに画面上部の「確認」を押すだけで、新しい版があれば自動で読み込みます（この端末の記録は消えません）。ラボデータが入っていないと、旧巣が地図に出ないので、上部にお知らせが出ます</li>
+      <li><b>プロジェクト</b>：⚙ の一番上で、調査ごとにプロジェクトを分けられます。「ラボ調査」はラボのフォルダ（マスター・提出）を使い、「個人調査」はラボのデータと混ざりません。巣・確認記録・写真・フォルダはプロジェクトごとに完全に別です（記録者・言語・画質・オフライン地図は共通）。今のプロジェクト名は画面上部に出ます</li>
+      <li><b>ドライブのフォルダ</b>：⚙ →「ドライブのフォルダ」で 1 回ずつ選びます。ラボ調査：マスター・提出・写真（みんな同じフォルダ）、ラボのアカウントは過去分も</li>
+      <li><b>ラボデータ（これまでの全部の巣）</b>：マスターのフォルダを選んでおくと、電波のあるときに画面上部の「確認」を押すだけで、新しい版があれば自動で読み込みます（この端末の記録は消えません）。ラボデータが入っていないと、旧巣が地図に出ないので、上部にお知らせが出ます</li>
+      <li><b>「提出する」</b>（ラボ調査）：記録の ZIP を「提出」に、まだ送っていない写真を「写真」に送ります。個人調査では「ドライブに保存」で、選んだフォルダに保存します</li>
+      <li><b>「更新マスター」</b>（ラボのアカウントだけに出ます）：今のラボデータと「提出」の新しいファイルをまとめ、新しいラボデータを「マスター」に置きます。古いラボデータとまとめたファイルは「過去分」へ。重複の候補があれば先に確認できます</li>
+      <li><b>写真の名前</b>：「巣の名前_日付_記録者_連番」になります（例：26_アカゲラ1_20261127_YAO_01.jpg）</li>
       <li><b>オフライン地図</b>：電波のない場所に行く前に、地図をその範囲まで拡大して「今の画面の範囲を保存」を押します（1 回 4000 枚まで）</li>
     </ul>
 
@@ -277,6 +289,24 @@
   <!-- 設定 -->
   <section id="sheet-settings" class="sheet" hidden>
     <div class="sheet-head"><strong data-i18n="settings"></strong><button class="close" data-close>✕</button></div>
+    <div id="proj-section" hidden>
+      <h3 class="sub" data-i18n="proj_title"></h3>
+      <label class="row"><span data-i18n="proj_current"></span><select id="s-proj"></select></label>
+      <p class="hint" id="proj-type"></p>
+      <div class="actions">
+        <button type="button" id="proj-new" data-i18n="proj_new"></button>
+        <button type="button" id="proj-rename" data-i18n="proj_rename"></button>
+        <button type="button" id="proj-del" class="danger" data-i18n="proj_delete"></button>
+      </div>
+      <p class="hint" data-i18n="proj_hint"></p>
+    </div>
+    <div id="folder-section" hidden>
+      <h3 class="sub" data-i18n="folders_title"></h3>
+      <p class="hint" id="folders-hint"></p>
+      <ul id="folder-list" class="folder-list"></ul>
+    </div>
+    <hr>
+    <h3 class="sub" data-i18n="common_title"></h3>
     <label class="row"><span data-i18n="language"></span>
       <select id="s-lang"><option value="ja">日本語</option><option value="zh">中文</option><option value="en">English</option></select></label>
     <label class="row"><span data-i18n="recorder_code"></span>

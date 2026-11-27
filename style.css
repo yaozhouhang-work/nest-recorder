@@ -154,3 +154,15 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .dup-photos img { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; }
 .dup-map { height: 220px; margin-top: 6px; border-radius: 6px; }
 .items li small.dup-same { color: #c62828; font-weight: bold; }
+
+/* v0.14 プロジェクト・データ画面 */
+.proj-badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 0; min-height: 0; margin: 0 2px; background: #2f5d50; color: #fff; font-weight: bold; }
+.proj-badge.personal { background: #8e24aa; }
+.proj-line { margin: 4px 0 8px; padding: 6px 10px; border-radius: 6px; font-weight: bold; background: rgba(47,93,80,.12); }
+.proj-line.personal { background: rgba(142,36,170,.12); }
+.folder-list { list-style: none; padding: 0; margin: 0; }
+.folder-list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.folder-list li > div { flex: 1; min-width: 0; }
+.folder-list small { display: block; color: var(--muted); word-break: break-all; }
+#data-more > summary { cursor: pointer; padding: 8px 0; font-weight: bold; }
+#m-result, #drive-result, #drive-folder { white-space: pre-line; }
