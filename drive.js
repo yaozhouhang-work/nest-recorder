@@ -17,11 +17,14 @@ const DRIVE_CONFIG = {
 };
 const DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file ' + DRIVE_READ_SCOPE;
+/* v0.14.2：「更新マスター」のときだけ、ラボのアカウントに全体の権限を追加で求める。
+ * drive.file では、手で置いた ZIP（このツールが作っていないファイル）を「過去分」へ移せなかったため */
+const DRIVE_FULL_SCOPE = 'https://www.googleapis.com/auth/drive';
 const APP_MARK = "appProperties has { key='nestRecorder' and value='1' }";   // このツールが作ったフォルダの印
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 const driveEnabled = () => !!(DRIVE_CONFIG.clientId && DRIVE_CONFIG.apiKey && DRIVE_CONFIG.appId);
-let driveToken = null, driveTokenExp = 0, driveTokenClient = null, driveCanRead = false;
+let driveToken = null, driveTokenExp = 0, driveTokenClient = null, driveCanRead = false, driveCanFull = false;
 
 function loadScriptOnce(src) {
   return new Promise((ok, ng) => {
@@ -43,18 +46,20 @@ async function drivePreload() {
     await new Promise((r) => gapi.load('picker', r));
   } catch (e) { console.warn(e); }
 }
-function driveAuth() {
-  if (driveToken && Date.now() < driveTokenExp - 60000) return Promise.resolve(driveToken);
+function driveAuth(full = false) {
+  if (driveToken && Date.now() < driveTokenExp - 60000 && (!full || driveCanFull)) return Promise.resolve(driveToken);
   return new Promise((ok, ng) => {
     // まだ読み込めていなければ読み込みを始めておき、もう一度押してもらう（読み込みを待つとポップアップがブロックされる）
     if (!window.google?.accounts?.oauth2) { drivePreload(); ng(new Error('not_loaded')); return; }
     driveTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: DRIVE_CONFIG.clientId, scope: DRIVE_SCOPE,
+      client_id: DRIVE_CONFIG.clientId, scope: full ? DRIVE_SCOPE + ' ' + DRIVE_FULL_SCOPE : DRIVE_SCOPE,
+      include_granted_scopes: true,
       callback: (r) => {
         if (r.error) { ng(new Error(r.error)); return; }
         driveToken = r.access_token; driveTokenExp = Date.now() + Number(r.expires_in || 3600) * 1000;
         // 同意画面で「読み取り」のチェックを外されたら、ラボデータは自動では探せない
-        driveCanRead = google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_READ_SCOPE);
+        driveCanFull = google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_FULL_SCOPE);
+        driveCanRead = driveCanFull || google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_READ_SCOPE);
         ok(driveToken);
       },
       error_callback: (e) => ng(new Error(e?.type || 'auth')),

@@ -207,8 +207,8 @@ Object.assign(I18N.zh, { name_label: '巢名', name_hint: '留空并填写种名
 Object.assign(I18N.en, { name_label: 'Nest name', name_hint: 'Leave blank and enter a species: on saving it is named “YY_speciesN” automatically (e.g. 26_ヒヨドリ3 = 3rd ヒヨドリ nest of 2026). You can still edit it.', name_auto: 'Auto: {n}' });
 /* v0.8：データの全消去・取り消し */
 Object.assign(I18N.ja, {
-  clear_title: 'この端末のデータを消す', clear_all: 'この端末のデータをすべて消す',
-  clear_hint: '巣・確認記録・修正履歴を消します（テストの記録を消したいとき用）。記録者コード・言語・追加した状態・ドライブのフォルダは残ります。直前の 1 回だけ元に戻せます。',
+  clear_title: 'この端末のデータを消す', clear_all: 'このプロジェクトの記録を消す',
+  clear_hint: '今のプロジェクトの巣・確認記録・修正履歴を消します（テストの記録を消したいとき用）。プロジェクト自体・記録者コード・言語・追加した状態・ドライブのフォルダは残ります。直前の 1 回だけ元に戻せます。',
   clear_confirm1: '巣 {n} 件、確認記録 {v} 件をこの端末から消します。',
   clear_unexported: '書き出していない変更が {u} 件あります。消す前に書き出すことをおすすめします。',
   clear_confirm2: '本当に消す場合は「削除」と入力してください。', clear_word: '削除', clear_done: '消しました。設定画面の「元に戻す」で、1 回だけ戻せます。',
@@ -216,8 +216,8 @@ Object.assign(I18N.ja, {
   clear_failed: '消せませんでした。データはそのまま残っています（{m}）',
 });
 Object.assign(I18N.zh, {
-  clear_title: '清除本机数据', clear_all: '清除本机的全部数据',
-  clear_hint: '清除巢、访查记录和修改记录（用于删掉测试数据）。记录者代码、语言、自己加的状态、网盘文件夹会保留。可以撤销最近的 1 次。',
+  clear_title: '清除本机数据', clear_all: '清除这个项目的记录',
+  clear_hint: '清除当前项目的巢、访查记录和修改记录（用于删掉测试数据）。项目本身、记录者代码、语言、自己加的状态、网盘文件夹会保留。可以撤销最近的 1 次。',
   clear_confirm1: '将从本机清除 {n} 个巢、{v} 条访查记录。',
   clear_unexported: '还有 {u} 处修改没有导出，建议先导出再清除。',
   clear_confirm2: '确定要清除，请输入“删除”。', clear_word: '删除', clear_done: '已清除。可以在设置里点“撤销”恢复一次。',
@@ -225,8 +225,8 @@ Object.assign(I18N.zh, {
   clear_failed: '没能清除，数据都还在（{m}）',
 });
 Object.assign(I18N.en, {
-  clear_title: 'Clear data on this device', clear_all: 'Clear all data on this device',
-  clear_hint: 'Deletes nests, visits and the edit log (e.g. test records). Recorder code, language, added statuses and the Drive folder are kept. The last clear can be undone once.',
+  clear_title: 'Clear data on this device', clear_all: 'Clear this project\'s records',
+  clear_hint: 'Deletes the current project\'s nests, visits and edit log (e.g. test records). The project itself, recorder code, language, added statuses and Drive folders are kept. The last clear can be undone once.',
   clear_confirm1: 'This removes {n} nests and {v} visits from this device.',
   clear_unexported: '{u} changes have not been exported. Export first is recommended.',
   clear_confirm2: 'Type "DELETE" to confirm.', clear_word: 'DELETE', clear_done: 'Cleared. Use “Undo” in Settings to restore once.',
@@ -577,4 +577,30 @@ Object.assign(I18N.en, {
   off_confirm: 'Save {l}: {n} tiles (up to zoom {z}). Wi-Fi is recommended. Continue?',
   off_progress: 'Saving… {d} / {n} tiles ({m} MB)', off_done: 'Saved: {d} tiles ({f} failed)', off_stopped: 'Stopped: {d} tiles saved',
   off_clear_confirm: 'Delete all saved offline maps (including maps you have viewed)?',
+});
+
+/* v0.14.2：全体の権限（更新マスター）・すべて消して最初の状態に戻す */
+Object.assign(I18N.ja, {
+  m_need_full: '「更新マスター」には、ドライブ全体の権限が必要です（手で置いたファイルも「過去分」へ移すため）。もう一度押して、Google の画面ですべての項目にチェックを入れてください。',
+  reset_hint: 'すべてのプロジェクト（巣・確認記録・写真・フォルダの設定）を消して、最初の状態に戻します。記録者コード・言語・写真の画質・オフライン地図は残ります。元に戻せません。',
+  reset_all: 'すべてのプロジェクトを消して最初の状態に戻す',
+  reset_confirm1: 'この端末の {n} 個のプロジェクトをすべて消します。元に戻せません。提出・保存していない記録は失われます。',
+  reset_confirm2: '本当に消す場合は「削除」と入力してください（元に戻せません）。',
+  reset_done: 'すべて消しました。最初の状態で開き直します。',
+});
+Object.assign(I18N.zh, {
+  m_need_full: '「更新マスター」需要整个网盘的权限（为了把手动放进去的文件也移到「過去分」）。请再按一次，在 Google 的画面里勾选全部项目。',
+  reset_hint: '删除所有项目（巢、访查记录、照片、文件夹设置），回到最初状态。记录者代码、语言、照片画质、离线地图会保留。无法撤销。',
+  reset_all: '删除所有项目，回到最初状态',
+  reset_confirm1: '将删除本机的全部 {n} 个项目，无法撤销。没有提交或保存的记录会丢失。',
+  reset_confirm2: '确定要删除，请输入“删除”（无法撤销）。',
+  reset_done: '已全部删除，将以最初状态重新打开。',
+});
+Object.assign(I18N.en, {
+  m_need_full: '“更新マスター” needs full Drive access (to move files placed by hand into “過去分” too). Tap again and tick every item on the Google screen.',
+  reset_hint: 'Deletes every project (nests, visits, photos, folder settings) and returns to the initial state. Recorder code, language, photo quality and offline maps are kept. Cannot be undone.',
+  reset_all: 'Delete all projects and reset',
+  reset_confirm1: 'This deletes all {n} projects on this device. It cannot be undone. Records not submitted or saved will be lost.',
+  reset_confirm2: 'Type "DELETE" to confirm (cannot be undone).',
+  reset_done: 'Everything was deleted. Reopening in the initial state.',
 });

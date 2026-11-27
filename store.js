@@ -98,6 +98,17 @@ async function storeDeleteProject(id) {
   await idbTx(keys.filter((k) => typeof k === 'string' && k.endsWith(suffix)).map((k) => ['del', k]));
 }
 
+// すべてのプロジェクト・控え・写真を消し、最初のプロジェクトを keep（空のデータ）にする
+async function storeResetAll(keep) {
+  await saveChain;
+  const keys = await new Promise((ok, ng) => {
+    const r = idb.transaction(IDB_STORE).objectStore(IDB_STORE).getAllKeys();
+    r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error);
+  });
+  await idbTx([...keys.map((k) => ['del', k]), ['put', 'db', keep]]);
+  storeProj = 'main';
+}
+
 // 保存。順番に実行し、前のデータを 'backup' に回す。失敗したら onError
 function storeSave(data, onError) {
   const snap = JSON.parse(JSON.stringify(data));          // 呼んだ時点の内容を保存する

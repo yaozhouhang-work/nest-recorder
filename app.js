@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.14.1
+/* 巣記録 試作版 v0.14.2
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
@@ -793,8 +793,8 @@ $('#m-update').onclick = async () => {
   if (!s.masterFolder || !s.driveFolder || !s.archiveFolder) { mSay(t('m_need_folders')); return; }
   if (!navigator.onLine) { mSay(t('drive_offline')); return; }
   try {
-    await driveAuth();
-    if (!driveCanRead) { mSay(t('a_need_read')); return; }
+    await driveAuth(true);                     // 全体の権限（手で置いたファイルも「過去分」へ移せる）
+    if (!driveCanFull) { mSay(t('m_need_full')); return; }
     if (!(await driveCanWrite(s.masterFolder.id))) { s.labAdmin = false; save(); showDriveInfo(); mSay(t('m_not_admin')); return; }
     // 1. 最新の A（まだ読み込んでいなければ）
     mSay(t('a_checking'));
@@ -1362,6 +1362,20 @@ $('#s-clear').onclick = async () => {
   db = empty;
   ids.forEach(refreshMarker); updateBadge(); fitAll(); updateBanner();
   showUndoClear(); alert(t('clear_done'));
+};
+/* すべてのプロジェクトを消して最初の状態に戻す（取り消しなし）。記録者・言語・画質・オフライン地図は残す */
+$('#s-reset-all').onclick = async () => {
+  if (storeInfo.backend !== 'IndexedDB') { $('#s-clear').click(); return; }
+  if (!confirm(t('reset_confirm1', { n: projects.list.length }))) return;
+  if ((prompt(t('reset_confirm2')) || '').trim() !== t('clear_word')) return;
+  const settings = Object.fromEntries(SHARED_SETTINGS.filter((k) => k in db.settings).map((k) => [k, db.settings[k]]));
+  const fresh = normalizeDb(null);
+  Object.assign(fresh.settings, settings);
+  fresh.offline = db.offline; fresh.welcomed = true;
+  try { await storeResetAll(JSON.parse(JSON.stringify(fresh))); }
+  catch (e) { alert(t('clear_failed', { m: e.message })); return; }
+  alert(t('reset_done'));
+  location.reload();
 };
 $('#s-undo-clear').onclick = async () => {
   try {
