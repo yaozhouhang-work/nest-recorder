@@ -46,7 +46,8 @@ async function drivePreload() {
 function driveAuth() {
   if (driveToken && Date.now() < driveTokenExp - 60000) return Promise.resolve(driveToken);
   return new Promise((ok, ng) => {
-    if (!window.google?.accounts?.oauth2) { ng(new Error('not_loaded')); return; }
+    // まだ読み込めていなければ読み込みを始めておき、もう一度押してもらう（読み込みを待つとポップアップがブロックされる）
+    if (!window.google?.accounts?.oauth2) { drivePreload(); ng(new Error('not_loaded')); return; }
     driveTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: DRIVE_CONFIG.clientId, scope: DRIVE_SCOPE,
       callback: (r) => {
@@ -61,6 +62,7 @@ function driveAuth() {
     driveTokenClient.requestAccessToken({ prompt: '' });
   });
 }
+function needPicker() { if (!window.google?.picker) { drivePreload(); throw new Error('not_loaded'); } }
 function drivePicker(token, views, multi) {
   return new Promise((ok) => {
     const P = google.picker;
@@ -94,6 +96,7 @@ async function driveFetch(url, opt = {}) {
 /* フォルダを選ぶ。key = 'driveFolder'（自分の保存先）/ 'masterFolder'（ラボデータ A の置き場） */
 async function drivePickFolder(key = 'driveFolder') {
   const token = await driveAuth();
+  needPicker();
   const [f] = await drivePicker(token, folderViews(), false);
   if (!f) return null;
   db.settings[key] = { id: f.id, name: f.name };
@@ -114,7 +117,9 @@ async function driveUpload(blob, name, opt = {}) {
  * ファイルの種類では絞らない（ドライブの画面から手で入れた ZIP は種類が zip になっていないことがあり、見えなかった）。
  * 読めないファイルは読み込みのときに知らせる */
 async function drivePickFiles() {
-  const P = google.picker, token = await driveAuth();
+  const token = await driveAuth();
+  needPicker();
+  const P = google.picker;
   const inFolder = (f, label) => new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setParent(f.id).setLabel(label);
   const views = [];
   if (db.settings.driveFolder) views.push(inFolder(db.settings.driveFolder, '保存先'));

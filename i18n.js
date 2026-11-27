@@ -301,6 +301,7 @@ Object.assign(I18N.ja, {
   drive_pick: '保存先フォルダを選ぶ', drive_folder: '保存先：{n}', drive_no_folder: 'フォルダがまだ選ばれていません（⚙ → ドライブのフォルダ）。',
   drive_note: '自分の記録を新しいファイルとして保存します（他の人のファイルは変更しません）。読み込みでは他の人のファイルも選べ、同じ ID は新しい方が残ります。電波のないときは端末に記録し、あとで保存してください。',
   drive_saving: '保存中…', drive_saved: '保存しました：{f}', drive_offline: 'オフラインのため Google ドライブにつながりません。電波のある場所でもう一度押してください。',
+  drive_not_ready: 'Google のログインの準備中です。数秒待ってから、もう一度押してください。何度押しても出る場合は、ブラウザのコンテンツブロッカー（広告ブロック等）やプライベートモードを確認してください。',
   drive_failed: 'Google ドライブでエラー：{m}',
 });
 Object.assign(I18N.zh, {
@@ -308,6 +309,7 @@ Object.assign(I18N.zh, {
   drive_pick: '选择保存的文件夹', drive_folder: '保存到：{n}', drive_no_folder: '还没有选择文件夹（⚙ → 网盘文件夹）。',
   drive_note: '把自己的记录存成一个新文件（不会改动别人的文件）。读入时也可以选别人的文件，同一编号保留较新的一条。没信号时先记在手机里，之后再存。',
   drive_saving: '保存中…', drive_saved: '已保存：{f}', drive_offline: '现在离线，连不上 Google 网盘。请到有信号的地方再点一次。',
+  drive_not_ready: 'Google 登录还在准备中。请等几秒再按一次。一直出现的话，请检查浏览器的内容拦截（广告拦截等）或无痕模式。',
   drive_failed: 'Google 网盘出错：{m}',
 });
 Object.assign(I18N.en, {
@@ -315,6 +317,7 @@ Object.assign(I18N.en, {
   drive_pick: 'Choose folder', drive_folder: 'Folder: {n}', drive_no_folder: 'No folder chosen yet (⚙ → Drive folders).',
   drive_note: 'Your records are saved as a new file (other people\'s files are never changed). When loading you can pick anyone\'s files; for the same ID the newer record wins. Offline, keep recording on the phone and save later.',
   drive_saving: 'Saving…', drive_saved: 'Saved: {f}', drive_offline: 'Offline — cannot reach Google Drive. Try again where you have signal.',
+  drive_not_ready: 'Google sign-in is still loading. Wait a few seconds and tap again. If this keeps happening, check content blockers (ad blockers) or private mode.',
   drive_failed: 'Google Drive error: {m}',
 });
 OPTIONS.category = [

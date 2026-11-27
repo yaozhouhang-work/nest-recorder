@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.14
+/* 巣記録 試作版 v0.14.1
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
@@ -665,7 +665,10 @@ $('#exp-all').onclick = exportAll;
  *  個人調査：driveFolder = 保存先、photoFolder = 写真（選ばなければ保存先の中に作る） */
 function driveMsg(s) { $('#drive-result').textContent = s; }
 function driveErrText(e) {
-  return String(e.message).startsWith('not_loaded') || !navigator.onLine ? t('drive_offline') : t('drive_failed', { m: e.message });
+  if (!navigator.onLine) return t('drive_offline');
+  // Google のログイン部品がまだ読み込めていない（電波はある）。v0.14 で「オフライン」と出ていたのはこれ
+  if (String(e.message).startsWith('not_loaded')) return t('drive_not_ready');
+  return t('drive_failed', { m: e.message });
 }
 function driveErr(e) { console.warn(e); driveMsg(driveErrText(e)); }
 function folderKeys() {
@@ -1336,6 +1339,7 @@ function openSettings() {
   $('#s-mymaps').checked = !!db.settings.mymaps;
   $('#s-photo-q').value = photoQuality();
   showProjSettings();
+  drivePreload();                                   // フォルダを選ぶときにすぐログイン画面を出せるように
   showUndoClear();
   $('#sheet-settings').hidden = false;
 }
