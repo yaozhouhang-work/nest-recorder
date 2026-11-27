@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.12
+/* 巣記録 試作版 v0.13
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
@@ -700,6 +700,7 @@ async function pullMaster(say) {
   if (!navigator.onLine) { say(t('drive_offline')); return; }
   try {
     await driveAuth();                         // クリック直後にログイン（ポップアップのブロック対策）
+    if (!driveCanRead) { say(t('a_need_read')); return; }
     say(t('a_checking'));
     const list = await driveListZips(f.id);
     const pick = list.find((x) => /MASTER/i.test(x.name)) || list[0];

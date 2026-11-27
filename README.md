@@ -1,4 +1,4 @@
-# 巣記録 Nest Recorder（試作版 v0.12）
+# 巣記録 Nest Recorder（試作版 v0.13）
 
 スマホのブラウザで使う野外の巣記録ツール。iPhone / Android どちらでも動きます。
 

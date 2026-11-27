@@ -1,7 +1,9 @@
 /* Google ドライブ連携（任意）
  * lab で共有している Google ドライブのフォルダに ZIP を保存し、そこから読み込む。
  * - サーバーは使わない。ブラウザから Google にログインし、Drive API を直接呼ぶ
- * - 権限は drive.file：このツールが作ったファイルと、ユーザーが Google の選択画面で選んだファイル／フォルダだけ
+ * - 権限は drive.file（書き込み：このツールが作ったファイルと、選択画面で選んだファイル／フォルダだけ）
+ *   + drive.readonly（v0.13〜。ラボデータのフォルダに他の人が置いた ZIP を探して読むため。drive.file だけでは
+ *     フォルダを選んでも中のファイルは見えなかった。読むだけで、データはこの端末の外へは送らない）
  * - 各自は自分のファイルだけを保存し、他の人のファイルは書き換えない。読み込み時に ID で統合する
  * DRIVE_CONFIG が空のあいだは、画面にこの機能は出ない。
  */
@@ -13,11 +15,13 @@ const DRIVE_CONFIG = {
   apiKey: 'AIzaSyAjreV5Jyjw4GU7c3aRLNcu1cNuBxV1RWQ',   // API キー（Google Picker 用。HTTP リファラーで制限済み）
   appId: '557575965611',                              // Google Cloud のプロジェクト番号
 };
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file ' + DRIVE_READ_SCOPE;
+const APP_MARK = "appProperties has { key='nestRecorder' and value='1' }";   // このツールが作ったフォルダの印
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 const driveEnabled = () => !!(DRIVE_CONFIG.clientId && DRIVE_CONFIG.apiKey && DRIVE_CONFIG.appId);
-let driveToken = null, driveTokenExp = 0, driveTokenClient = null;
+let driveToken = null, driveTokenExp = 0, driveTokenClient = null, driveCanRead = false;
 
 function loadScriptOnce(src) {
   return new Promise((ok, ng) => {
@@ -47,7 +51,10 @@ function driveAuth() {
       client_id: DRIVE_CONFIG.clientId, scope: DRIVE_SCOPE,
       callback: (r) => {
         if (r.error) { ng(new Error(r.error)); return; }
-        driveToken = r.access_token; driveTokenExp = Date.now() + Number(r.expires_in || 3600) * 1000; ok(driveToken);
+        driveToken = r.access_token; driveTokenExp = Date.now() + Number(r.expires_in || 3600) * 1000;
+        // 同意画面で「読み取り」のチェックを外されたら、ラボデータは自動では探せない
+        driveCanRead = google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_READ_SCOPE);
+        ok(driveToken);
       },
       error_callback: (e) => ng(new Error(e?.type || 'auth')),
     });
@@ -103,13 +110,18 @@ async function driveUpload(blob, name, opt = {}) {
     { method: 'POST', body: form });
   return res.json();
 }
-/* フォルダ内のファイルを選んで取り出す（複数可） */
+/* ファイルを選んで取り出す（複数可）。
+ * ファイルの種類では絞らない（ドライブの画面から手で入れた ZIP は種類が zip になっていないことがあり、見えなかった）。
+ * 読めないファイルは読み込みのときに知らせる */
 async function drivePickFiles() {
   const P = google.picker, token = await driveAuth();
-  const view = new P.DocsView(P.ViewId.DOCS).setIncludeFolders(false)
-    .setMimeTypes('application/zip,application/x-zip-compressed,text/csv,application/vnd.google-earth.kmz');
-  if (db.settings.driveFolder) view.setParent(db.settings.driveFolder.id);
-  const docs = await drivePicker(token, [view], true);
+  const inFolder = (f, label) => new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setParent(f.id).setLabel(label);
+  const views = [];
+  if (db.settings.driveFolder) views.push(inFolder(db.settings.driveFolder, '保存先'));
+  if (db.settings.masterFolder) views.push(inFolder(db.settings.masterFolder, 'ラボデータ'));
+  views.push(new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setParent('root').setLabel('マイドライブ'),
+    new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setOwnedByMe(false).setLabel('共有アイテム'));
+  const docs = (await drivePicker(token, views, true)).filter((d) => d.mimeType !== FOLDER_MIME);
   const files = [];
   for (const d of docs) {
     const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(d.id)}?alt=media&supportsAllDrives=true`);
@@ -119,15 +131,16 @@ async function drivePickFiles() {
   }
   return files;
 }
-/* 保存先フォルダの中のサブフォルダ（なければ作る）。drive.file なので、このツールが作ったものだけが見つかる */
+/* 保存先フォルダの中のサブフォルダ（なければ作る）。
+ * 読み取り権限で手作りのフォルダも見えるようになったが、そこへは書き込めないので、このツールが作った印のあるものだけを使う */
 async function driveEnsureSubfolder(name) {
   const parent = db.settings.driveFolder.id;
-  const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and '${parent}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`);
+  const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and '${parent}' in parents and mimeType='${FOLDER_MIME}' and trashed=false and ${APP_MARK}`);
   const list = await (await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true`)).json();
   if (list.files?.length) return list.files[0].id;
   const res = await driveFetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parent] }),
+    body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parent], appProperties: { nestRecorder: '1' } }),
   });
   return (await res.json()).id;
 }
@@ -138,7 +151,7 @@ async function driveMove(fileId, toFolder) {
   await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?addParents=${toFolder}` +
     `${from ? '&removeParents=' + from : ''}&supportsAllDrives=true&fields=id`, { method: 'PATCH' });
 }
-/* フォルダの中の ZIP を新しい順に（drive.file なので、このツールから見えるものだけ） */
+/* フォルダの中の ZIP を新しい順に（読み取り権限があれば、他の人が置いたものも見える） */
 async function driveListZips(folderId) {
   const q = encodeURIComponent(`'${folderId}' in parents and trashed=false and (mimeType='application/zip' or mimeType='application/x-zip-compressed' or name contains '.zip')`);
   const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=50` +
