@@ -267,7 +267,7 @@ Object.assign(I18N.en, {
 /* v0.9：重複の候補・最後にまとめた日 */
 Object.assign(I18N.ja, {
   dup_btn: '重複の候補を確認（{n} 組）', dup_title: '重複の候補',
-  dup_hint: '別々の人が同じ巣を登録したかもしれない組（{m} m 以内・同じ区分・種が同じか空欄）を表示します。',
+  dup_hint: '別々の人が同じ巣を登録したかもしれない組（{m} m 以内・同じ区分・種が同じか空欄。名前が同じなら 100 m 以内）を表示します。',
   dup_explain: '同じ巣なら「まとめる」：確認記録を 1 つの巣に集め、空欄の項目はもう一方から補い、もう一方は削除します（修正履歴に残り、他の人のファイルから復活しません）。別の巣なら「別の巣」：今後この組は表示しません。',
   dup_none: '重複の候補はありません。', dup_keep: '残す', dup_merge: '同じ巣：まとめる', dup_not: '別の巣',
   dup_dist: '距離 約 {d} m', dup_visits: '確認 {n} 回', dup_after_merge: '重複の候補が {n} 組あります。「重複の候補を確認」で確かめてください。',
@@ -277,7 +277,7 @@ Object.assign(I18N.ja, {
 });
 Object.assign(I18N.zh, {
   dup_btn: '检查重复候选（{n} 组）', dup_title: '重复候选',
-  dup_hint: '列出可能是不同的人登记了同一个巢的组合（{m} m 以内、同一分类、种名相同或为空）。',
+  dup_hint: '列出可能是不同的人登记了同一个巢的组合（{m} m 以内、同一分类、种名相同或为空；名字相同则 100 m 以内）。',
   dup_explain: '是同一个巢就点“合并”：访查记录集中到一个巢，空着的栏从另一个补上，另一个删除（修改记录里有记载，不会从别人的文件复活）。不是同一个就点“不同的巢”：以后不再显示这一组。',
   dup_none: '没有重复候选。', dup_keep: '保留', dup_merge: '同一个巢：合并', dup_not: '不同的巢',
   dup_dist: '相距约 {d} m', dup_visits: '访查 {n} 次', dup_after_merge: '有 {n} 组重复候选，请点“检查重复候选”确认。',
@@ -287,7 +287,7 @@ Object.assign(I18N.zh, {
 });
 Object.assign(I18N.en, {
   dup_btn: 'Check possible duplicates ({n})', dup_title: 'Possible duplicates',
-  dup_hint: 'Pairs that may be the same nest registered by different people (within {m} m, same category, same or blank species).',
+  dup_hint: 'Pairs that may be the same nest registered by different people (within {m} m, same category, same or blank species; same name: within 100 m).',
   dup_explain: 'Same nest → “Merge”: visits go to one nest, blank fields are filled from the other, and the other is deleted (logged; it will not come back from other files). Different nests → “Different”: this pair will not be shown again.',
   dup_none: 'No possible duplicates.', dup_keep: 'Keep', dup_merge: 'Same nest: merge', dup_not: 'Different',
   dup_dist: '≈ {d} m apart', dup_visits: '{n} visits', dup_after_merge: '{n} possible duplicate pairs — please check them.',
@@ -386,7 +386,9 @@ Object.assign(I18N.ja, {
   icon_auto: '自動', icon_1899: 'ピン', icon_1769: '✓ チェック', icon_1898: '✕ バツ', icon_1608: 'i インフォ', icon_1502: '★ 星', icon_1594: '？ はてな',
   col_0288D1: '青', col_A52714: '赤', col_E65100: '橙', col_F9A825: '黄', col_097138: '緑', col_7B1FA2: '紫', col_000000: '黒', col_757575: '灰', col_795548: '茶',
   near_title: '近くに巣があります', near_body: '{m} m 以内に登録済みの巣があります。同じ巣なら、新しく作らずにその巣を開いてください。',
-  near_open: '{n}（{d} m）を開く', near_new: '別の巣として新しく登録',
+  near_open: '{n}（{d} m{x}）を開く', near_new: '別の巣として新しく登録',
+  brief_height: '高さ {h} m', dup_created: '登録 {d}', dup_same_name: '名前が同じ', dup_map: '地図で見る',
+  dup_rules: '木が近い所では数 m おきに巣があり、GPS の誤差より近いので、距離だけでは見分けられません。次の組は「明らかに別の巣」として表示しません：両方に名前があって違う／同じ人が登録した／巣のタイプが違う／高さが {h} m 以上違う。名前が同じ組は {nm} m 以内まで表示します。',
   photo_files: '写真', photo_add: '＋ 写真を追加', photo_hint: '画質：{q}（⚙ で変更）。写真をタップすると外せます。',
   photo_adding: '取り込み中… {i} / {n}', photo_failed: '写真を取り込めませんでした：{f}（{m}）',
   photo_remove_confirm: 'この写真を外しますか？\n{f}\n（ドライブに送った写真はドライブに残ります）',
@@ -415,7 +417,9 @@ Object.assign(I18N.zh, {
   icon_auto: '自动', icon_1899: '图钉', icon_1769: '✓ 打勾', icon_1898: '✕ 叉', icon_1608: 'i 信息', icon_1502: '★ 星', icon_1594: '？ 问号',
   col_0288D1: '蓝', col_A52714: '红', col_E65100: '橙', col_F9A825: '黄', col_097138: '绿', col_7B1FA2: '紫', col_000000: '黑', col_757575: '灰', col_795548: '棕',
   near_title: '附近已有巢', near_body: '{m} m 以内有已登记的巢。如果是同一个巢，请直接打开它，不要新建。',
-  near_open: '打开 {n}（{d} m）', near_new: '作为另一个巢新建',
+  near_open: '打开 {n}（{d} m{x}）', near_new: '作为另一个巢新建',
+  brief_height: '高 {h} m', dup_created: '登记 {d}', dup_same_name: '名字相同', dup_map: '在地图上看',
+  dup_rules: '树挨得近的地方几米就有一个巢，比 GPS 误差还近，光看距离分不清。以下组合视为“明显是不同的巢”，不列出：两个都有名字且不同／同一个人登记的／巢的类型不同／高度相差 {h} m 以上。名字相同的组合在 {nm} m 以内都会列出。',
   photo_files: '照片', photo_add: '＋ 添加照片', photo_hint: '画质：{q}（在 ⚙ 里更改）。点照片可以移除。',
   photo_adding: '正在导入… {i} / {n}', photo_failed: '无法导入照片：{f}（{m}）',
   photo_remove_confirm: '移除这张照片吗？\n{f}\n（已上传到网盘的照片会留在网盘）',
@@ -444,7 +448,9 @@ Object.assign(I18N.en, {
   icon_auto: 'Auto', icon_1899: 'Pin', icon_1769: '✓ Check', icon_1898: '✕ Cross', icon_1608: 'i Info', icon_1502: '★ Star', icon_1594: '? Question',
   col_0288D1: 'Blue', col_A52714: 'Red', col_E65100: 'Orange', col_F9A825: 'Yellow', col_097138: 'Green', col_7B1FA2: 'Purple', col_000000: 'Black', col_757575: 'Grey', col_795548: 'Brown',
   near_title: 'A nest is nearby', near_body: 'A registered nest is within {m} m. If it is the same nest, open it instead of creating a new one.',
-  near_open: 'Open {n} ({d} m)', near_new: 'Register as a different nest',
+  near_open: 'Open {n} ({d} m{x})', near_new: 'Register as a different nest',
+  brief_height: '{h} m high', dup_created: 'added {d}', dup_same_name: 'Same name', dup_map: 'Show on map',
+  dup_rules: 'Where trees are close, nests can be a few metres apart, closer than the GPS error, so distance alone cannot tell them apart. These pairs are treated as clearly different and not shown: both named with different names / registered by the same person / different nest type / heights differ by {h} m or more. Pairs with the same name are shown up to {nm} m apart.',
   photo_files: 'Photos', photo_add: '+ Add photos', photo_hint: 'Quality: {q} (change in ⚙). Tap a photo to remove it.',
   photo_adding: 'Adding… {i} / {n}', photo_failed: 'Could not add photo: {f} ({m})',
   photo_remove_confirm: 'Remove this photo?\n{f}\n(Photos already sent to Drive stay on Drive)',

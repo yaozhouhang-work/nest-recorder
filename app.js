@@ -1,4 +1,4 @@
-/* 巣記録 試作版 v0.11
+/* 巣記録 試作版 v0.12
  * 地図 + GPS + 巣 / 確認記録 + 修正履歴 + CSV 書き出し・読み込み + 多言語。
  * データはこの端末のブラウザ（IndexedDB、store.js）に保存。正式データは書き出した CSV。
  */
@@ -154,13 +154,46 @@ document.addEventListener('click', (e) => {
 });
 
 // ================= 地図 =================
-const map = L.map('map', { zoomControl: true });
+/* 地図はどこまでも拡大できるように（v0.12〜）。地図そのものがない拡大率では、ある所までの地図を引き伸ばす（ぼやける）。
+ * 地図の 1 枚が取れないとき（オフラインで保存していない拡大率など）は、1 つ上の拡大率の地図を引き伸ばして代わりに出す（最大 5 段） */
+const MAP_MAX_ZOOM = 22;
+const FallbackLayer = L.TileLayer.extend({
+  urlAt(x, y, z) { return L.Util.template(this._url, L.extend({ s: 'a', x, y, z }, this.options)); },
+  createTile(coords, done) {
+    const tile = document.createElement('div');
+    tile.style.overflow = 'hidden';
+    const img = document.createElement('img');
+    img.alt = ''; img.setAttribute('role', 'presentation');
+    img.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none';
+    tile.appendChild(img);
+    const z0 = this._getZoomForUrl();
+    let k = 0;
+    img.onload = () => done(null, tile);
+    img.onerror = () => {
+      k++;
+      if (k > 5 || z0 - k < 0) { done(new Error('tile'), tile); return; }
+      const s = 2 ** k, px = Math.floor(coords.x / s), py = Math.floor(coords.y / s);
+      img.style.width = img.style.height = s * 100 + '%';
+      img.style.left = -(coords.x - px * s) * 100 + '%';
+      img.style.top = -(coords.y - py * s) * 100 + '%';
+      img.src = this.urlAt(px, py, z0 - k);
+    };
+    img.src = this.urlAt(coords.x, coords.y, z0);
+    return tile;
+  },
+});
 const gsiAttr = '<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>';
-const layers = {
-  '地理院 標準': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: gsiAttr }),
-  '地理院 写真': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18, attribution: gsiAttr }),
-  'OpenStreetMap': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
+const LAYER_DEFS = {
+  '地理院 標準': ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', 18, gsiAttr],
+  '地理院 写真': ['https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', 18, gsiAttr],
+  'OpenStreetMap': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png', 19, '&copy; OpenStreetMap contributors'],
 };
+const makeLayer = (name) => {
+  const [url, nativeZ, attribution] = LAYER_DEFS[name];
+  return new FallbackLayer(url, { maxZoom: MAP_MAX_ZOOM, maxNativeZoom: nativeZ, attribution });
+};
+const map = L.map('map', { zoomControl: true, maxZoom: MAP_MAX_ZOOM });
+const layers = Object.fromEntries(Object.keys(LAYER_DEFS).map((k) => [k, makeLayer(k)]));
 layers['地理院 標準'].addTo(map);
 let baseName = '地理院 標準';
 map.on('baselayerchange', (e) => { baseName = e.name; });
@@ -272,12 +305,20 @@ function createNest(lat, lon, src, f) {
   openNest(nest.nest_id);
 }
 /* 20 m 以内に巣があれば「この巣ですか？」と聞く（同じ巣を 2 つ作らないため） */
+/* 巣を見分けるための短い説明：種・タイプ・高さ */
+function nestBrief(n) {
+  return [n.species, n.nest_type ? optLabel('nest_type', n.nest_type) : '',
+    n.height_m != null && n.height_m !== '' ? t('brief_height', { h: n.height_m }) : ''].filter(Boolean).join('・');
+}
 function createNestChecked(lat, lon, src, f) {
   const near = db.nests.map((n) => [n, distM({ lat, lon }, n)]).filter(([, d]) => d <= DUP_M)
-    .sort((a, b) => a[1] - b[1]).slice(0, 3);
+    .sort((a, b) => a[1] - b[1]).slice(0, 5);
   if (!near.length) { createNest(lat, lon, src, f); return; }
   modal(t('near_title'), t('near_body', { m: DUP_M }), [
-    ...near.map(([n, d]) => [t('near_open', { n: n.name || n.nest_id, d: Math.round(d) }), 'primary', () => openNest(n.nest_id)]),
+    ...near.map(([n, d]) => {
+      const b = nestBrief(n);
+      return [t('near_open', { n: n.name || n.nest_id, d: Math.round(d), x: b ? '・' + b : '' }), 'primary', () => openNest(n.nest_id)];
+    }),
     [t('near_new'), '', () => createNest(lat, lon, src, f)],
     [t('cancel'), '', null],
   ]);
@@ -757,17 +798,35 @@ function distM(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 const pairKey = (a, b) => [a, b].sort().join('|');
+/* 木が近い所では 5 m おきに巣があることもあり、GPS の誤差（±10〜20 m）より近いので、距離だけでは見分けられない。
+ * そこで（v0.12〜）：
+ *  - 名前が同じ（既知の巣の名前を入れた）なら、100 m 以内まで候補にする
+ *  - 名前が違わなくても、次のどれかなら「明らかに別の巣」として候補にしない */
+const DUP_NAME_M = 100, DUP_HEIGHT_M = 3;
+const nameKey = (n) => String(n.name || '').normalize('NFKC').trim().toLowerCase();
+function dupClearlyDifferent(a, b) {
+  const na = nameKey(a), nb = nameKey(b);
+  if (na && nb && na !== nb) return true;                                   // 両方に名前があり、違う
+  if (a.recorder && a.recorder === b.recorder) return true;                 // 同じ人が登録した（現場で 2 つ見ている）
+  if (a.nest_type && b.nest_type && a.nest_type !== b.nest_type) return true;  // 巣のタイプが違う
+  if (a.height_m != null && b.height_m != null && a.height_m !== '' && b.height_m !== ''
+    && Math.abs(a.height_m - b.height_m) >= DUP_HEIGHT_M) return true;      // 高さが 3 m 以上違う
+  return false;
+}
 function dupCandidates() {
   const not = new Set(db.notDup || []), out = [], ns = db.nests;
   for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
     const a = ns[i], b = ns[j];
     if ((a.category || 'nest') !== (b.category || 'nest')) continue;
-    if (a.species && b.species && a.species !== b.species) continue;
-    if (Math.abs(a.lat - b.lat) > 0.0003 || Math.abs(a.lon - b.lon) > 0.0004) continue;   // 先に粗く絞り込む
+    if (Math.abs(a.lat - b.lat) > 0.0012 || Math.abs(a.lon - b.lon) > 0.0016) continue;   // 先に粗く絞り込む（約 130 m）
+    if (not.has(pairKey(a.nest_id, b.nest_id))) continue;
+    const same = !!nameKey(a) && nameKey(a) === nameKey(b);
     const d = distM(a, b);
-    if (d <= DUP_M && !not.has(pairKey(a.nest_id, b.nest_id))) out.push({ a, b, d });
+    if (same) { if (d <= DUP_NAME_M) out.push({ a, b, d, same }); continue; }
+    if (a.species && b.species && a.species !== b.species) continue;
+    if (d <= DUP_M && !dupClearlyDifferent(a, b)) out.push({ a, b, d, same });
   }
-  return out.sort((x, y) => x.d - y.d);
+  return out.sort((x, y) => (y.same - x.same) || x.d - y.d);
 }
 /* 残す方：My Maps から来た点（My Maps 側にも同じ ID がある）> 確認記録が多い > 先に登録した */
 function keeperOf(a, b) {
@@ -782,19 +841,56 @@ function updateDupButton() {
   $('#dup-hint').textContent = t('dup_hint', { m: DUP_M });
   return n;
 }
+let dupMaps = [];
 function openDup() {
   closeSheets();
+  dupMaps.forEach((m) => m.remove()); dupMaps = [];
   const list = dupCandidates();
-  const card = (n, keep) => `<div><b>${keep ? '✔ ' : ''}${esc(n.name || n.nest_id)}</b> ${esc(n.species || t('no_species'))}
-    <small>${esc(n.nest_id)} · ${esc(n.recorder || '—')} · ${t('dup_visits', { n: visitsOf(n.nest_id).length })}</small></div>`;
-  $('#dup-items').innerHTML = list.length ? list.map(({ a, b, d }) => {
+  const card = (n, keep) => {
+    const info = [
+      n.nest_type ? `${t('nest_type')}: ${optLabel('nest_type', n.nest_type)}` : '',
+      n.height_m != null && n.height_m !== '' ? t('brief_height', { h: n.height_m }) : '',
+      n.site ? `${t('site')}: ${n.site}` : '',
+      n.gps_accuracy_m != null ? `GPS ±${n.gps_accuracy_m} m` : '',
+    ].filter(Boolean).join(' · ');
+    const photos = db.photos.filter((p) => p.nest_id === n.nest_id).slice(-3);
+    return `<div class="dup-card ${keep ? 'keep' : 'other'}"><b>${keep ? '✔ ' : ''}${esc(n.name || n.nest_id)}</b> ${esc(n.species || t('no_species'))}
+    <small>${esc(n.nest_id)} · ${esc(n.recorder || '—')} · ${t('dup_created', { d: String(n.created_at || '').slice(0, 10) || '—' })} · ${t('dup_visits', { n: visitsOf(n.nest_id).length })}</small>
+    ${info ? `<small>${esc(info)}</small>` : ''}
+    ${photos.length ? `<div class="dup-photos">${photos.map((p) => `<img data-photo="${esc(p.name)}" alt="">`).join('')}</div>` : ''}</div>`;
+  };
+  $('#dup-items').innerHTML = list.length ? list.map(({ a, b, d, same }) => {
     const [k, o] = keeperOf(a, b);
     return `<li data-keep="${esc(k.nest_id)}" data-other="${esc(o.nest_id)}">
+      ${same ? `<small class="dup-same">${esc(t('dup_same_name'))}</small>` : ''}
       ${card(k, true)}${card(o, false)}<small>${t('dup_dist', { d: Math.round(d) })}</small>
-      <div class="actions"><button type="button" data-act="not">${esc(t('dup_not'))}</button>
+      <div class="dup-map" hidden></div>
+      <div class="actions"><button type="button" data-act="map">${esc(t('dup_map'))}</button>
+      <button type="button" data-act="not">${esc(t('dup_not'))}</button>
       <button type="button" class="primary" data-act="merge">${esc(t('dup_merge'))}</button></div></li>`;
   }).join('') : `<li class="hint">${t('dup_none')}</li>`;
+  $('#dup-hint-detail').textContent = t('dup_rules', { m: DUP_M, h: DUP_HEIGHT_M, nm: DUP_NAME_M });
   $('#sheet-dup').hidden = false;
+  document.querySelectorAll('#dup-items img[data-photo]').forEach(async (img) => {
+    const u = await photoThumbUrl(img.dataset.photo).catch(() => '');
+    if (u) img.src = u; else img.remove();
+  });
+}
+/* 2 つの巣だけを大きく拡大した小さな地図（緑 = 残す方、橙 = もう一方） */
+function showDupMap(li) {
+  const box = li.querySelector('.dup-map');
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  if (box._map) return;
+  const k = findNest(li.dataset.keep), o = findNest(li.dataset.other);
+  const m = L.map(box, { zoomControl: true, attributionControl: false, maxZoom: MAP_MAX_ZOOM });
+  makeLayer(baseName).addTo(m);
+  const pt = (n, color) => L.circleMarker([n.lat, n.lon], { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 })
+    .bindTooltip(esc(n.name || n.nest_id), { permanent: true, direction: 'top', offset: [0, -8] }).addTo(m);
+  pt(k, '#2e7d32'); pt(o, '#ef6c00');
+  const fit = () => { m.invalidateSize(); m.fitBounds(L.latLngBounds([[k.lat, k.lon], [o.lat, o.lon]]).pad(0.6), { maxZoom: 21 }); };
+  m.setView([k.lat, k.lon], 18); requestAnimationFrame(fit);
+  box._map = m; dupMaps.push(m);
 }
 function mergeNests(keepId, otherId) {
   const k = findNest(keepId), o = findNest(otherId); if (!k || !o) return;
@@ -807,6 +903,7 @@ function mergeNests(keepId, otherId) {
     logEdit('visits', v.visit_id, 'nest_id', v.nest_id, k.nest_id);
     v.nest_id = k.nest_id; v.updated_at = now;
   }
+  for (const p of db.photos) if (p.nest_id === o.nest_id) p.nest_id = k.nest_id;   // 写真も残す方の巣へ
   k.updated_at = now;
   db.edits.push({ edited_at: now, recorder: rec(), table: 'nests', record_id: o.nest_id, field: '(deleted)',
     old_value: JSON.stringify(o), new_value: `merged into ${k.nest_id}` });
@@ -818,6 +915,7 @@ $('#btn-dup').onclick = openDup;
 $('#dup-items').onclick = (e) => {
   const b = e.target.closest('button[data-act]'); if (!b) return;
   const li = b.closest('li'), keep = li.dataset.keep, other = li.dataset.other;
+  if (b.dataset.act === 'map') { showDupMap(li); return; }
   if (b.dataset.act === 'merge') {
     const k = findNest(keep), o = findNest(other);
     if (!confirm(t('dup_confirm', { a: o.name || o.nest_id, b: k.name || k.nest_id }))) return;
